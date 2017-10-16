@@ -12,6 +12,15 @@ case class RREFRequest(frequency: Int, id: Int, path: String) extends Request
 case class ALRTRequest(msgs: Vector[String]) extends Request
 
 object Request {
+  implicit object RequestEncoder extends XPlaneEncoder[Request] { // TODO this should be "automatic" using Shapeless
+    override def encode(req: Request): ByteBuffer = req match {
+      case rpos: RPOSRequest => RPOSEncoder encode rpos
+      case dref: DREFRequest => DREFEncoder encode dref
+      case rref: RREFRequest => RREFEncoder encode rref
+      case alrt: ALRTRequest => ALRTEncoder encode alrt
+    }
+  }
+
   implicit val RPOSEncoder = encodeHelper[RPOSRequest](16, "RPOS") { (msg, b) =>
     ascii(b, msg.positionsPerSecond.toString)
   }
