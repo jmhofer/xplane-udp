@@ -1,8 +1,8 @@
-package de.johoop.xplane.network
+package de.johoop.xplane.network.protocol
 
 import java.nio.ByteBuffer
 
-import de.johoop.xplane.network.Message.DecodingError
+import de.johoop.xplane.network.protocol.Message.DecodingError
 
 trait XPlaneEncoder[T] {
   def encode(t: T): ByteBuffer

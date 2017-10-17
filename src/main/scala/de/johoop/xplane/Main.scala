@@ -2,9 +2,10 @@ package de.johoop.xplane
 
 import java.nio.ByteBuffer
 
-import de.johoop.xplane.network.Message._
-import de.johoop.xplane.network.Response._
 import de.johoop.xplane.network._
+import de.johoop.xplane.network.protocol._
+import de.johoop.xplane.network.protocol.Message._
+import de.johoop.xplane.network.protocol.Response._
 
 object Main {
   def main(args: Array[String]): Unit = {

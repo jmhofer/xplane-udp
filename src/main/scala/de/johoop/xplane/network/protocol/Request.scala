@@ -1,4 +1,4 @@
-package de.johoop.xplane.network
+package de.johoop.xplane.network.protocol
 
 import java.nio.{ByteBuffer, ByteOrder}
 

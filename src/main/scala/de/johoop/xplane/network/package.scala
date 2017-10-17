@@ -4,7 +4,8 @@ import java.net._
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 
-import de.johoop.xplane.network.Message._
+import de.johoop.xplane.network.protocol.Message._
+import de.johoop.xplane.network.protocol.{BECN, Payload, Request, Response}
 import de.johoop.xplane.util.returning
 
 package object network {

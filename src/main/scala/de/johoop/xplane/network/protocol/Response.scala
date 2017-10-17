@@ -1,9 +1,10 @@
-package de.johoop.xplane.network
+package de.johoop.xplane.network.protocol
 
 import java.nio.{ByteBuffer, ByteOrder}
 
-import de.johoop.xplane.network.Message._
+import de.johoop.xplane.network.protocol.Message._
 import de.johoop.xplane.util.{returning, string}
+
 import scala.annotation.tailrec
 
 case class Response(opcode: String, payload: Payload) extends Message
