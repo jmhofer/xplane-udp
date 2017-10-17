@@ -1,11 +1,7 @@
 package de.johoop.xplane
 
-import java.nio.ByteBuffer
-
 import de.johoop.xplane.network._
 import de.johoop.xplane.network.protocol._
-import de.johoop.xplane.network.protocol.Message._
-import de.johoop.xplane.network.protocol.Response._
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -31,22 +27,12 @@ object Main {
 
     dataRefs foreach { case (id, path) => send(RREFRequest(1, id, path)) }
 
-    val response = ByteBuffer.allocate(1024)
-
-    1 to 5 foreach { _ =>
-      response.clear
-      client.channel receive response
-      println(response.decode[Payload])
-    }
+    XPlaneSource forClient client take 5 runForeach println
 
     send(DREFRequest(153.0f, "sim/flightmodel/weight/m_fuel[0]"))
     send(DREFRequest(0.0f, "sim/flightmodel/weight/m_fuel[1]"))
     send(ALRTRequest(Vector("hello", "one", "two", "three")))
 
-    1 to 5 foreach { _ =>
-      response.clear
-      client.channel receive response
-      println(response.decode[Payload])
-    }
+    XPlaneSource forClient client take 5 runForeach println
   }
 }
