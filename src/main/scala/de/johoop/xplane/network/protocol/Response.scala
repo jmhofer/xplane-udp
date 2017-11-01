@@ -39,7 +39,7 @@ case class RREF(dataRefs: Int Map Float) extends Payload
 
 object Response {
   implicit object BECNDecoder extends XPlaneDecoder[BECN] {
-    def decode(b: ByteBuffer): Either[DecodingError, BECN] = Right(BECN(
+    def decode(b: ByteBuffer): Either[ProtocolError, BECN] = Right(BECN(
       majorVersion = b.get,
       minorVersion = b.get,
       hostId = b.getInt,
@@ -51,7 +51,7 @@ object Response {
   }
 
   implicit object RPOSDecoder extends XPlaneDecoder[RPOS] {
-    def decode(b: ByteBuffer): Either[DecodingError, RPOS] = Right(RPOS(
+    def decode(b: ByteBuffer): Either[ProtocolError, RPOS] = Right(RPOS(
       longitude = b.getDouble,
       latitude = b.getDouble,
       elevationSeaLevel = b.getDouble,
@@ -69,7 +69,7 @@ object Response {
   }
 
   implicit object RREFDecoder extends XPlaneDecoder[RREF] {
-    override def decode(b: ByteBuffer): Either[DecodingError, RREF] = {
+    override def decode(b: ByteBuffer): Either[ProtocolError, RREF] = {
       @tailrec
       def loop(acc: Int Map Float = Map.empty): Int Map Float = {
         val id = b.getInt
@@ -81,7 +81,7 @@ object Response {
   }
 
   implicit object ResponseDecoder extends XPlaneDecoder[Payload] {
-    def decode(b: ByteBuffer): Either[DecodingError, Payload] = {
+    def decode(b: ByteBuffer): Either[ProtocolError, Payload] = {
       b.rewind
       b.order(ByteOrder.LITTLE_ENDIAN)
       returning(string(b, 4))(_ => b.get) match {
@@ -89,7 +89,7 @@ object Response {
         case "RPOS" => b.decode[RPOS]
         case "RREF" => b.decode[RREF]
 
-        case other => Left(DecodingError(s"unknown opcode: $other"))
+        case other => Left(ProtocolError(s"unknown opcode: $other"))
       }
     }
   }

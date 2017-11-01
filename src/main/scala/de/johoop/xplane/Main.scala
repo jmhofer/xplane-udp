@@ -1,18 +1,22 @@
 package de.johoop.xplane
 
+import de.johoop.xplane.api.XPlane
 import de.johoop.xplane.network._
 import de.johoop.xplane.network.protocol._
 
 object Main {
   def main(args: Array[String]): Unit = {
-
+/*
     val becn = resolveLocalXPlaneBeacon
     println(s"got: $becn")
 
     withXPlaneClient(doStuff)
+*/
   }
 
-  def doStuff(client: XPlaneClient): Unit = {
+  def doStuff(client: XPlane): Unit = {
+    // TODO rewrite with new API
+    /*
     val send = sendTo(client)
 
     send(RPOSRequest(1))
@@ -34,5 +38,6 @@ object Main {
     send(ALRTRequest(Vector("hello", "one", "two", "three")))
 
     XPlaneSource forClient client take 5 runForeach println
+    */
   }
 }
