@@ -1,7 +1,5 @@
 package de.johoop.xplane.network
 
-import java.nio.channels.DatagramChannel
-
 import akka.actor.{Actor, ActorRef, Props}
 import akka.stream.stage.AsyncCallback
 import de.johoop.xplane.network.SubscribingActor.SubscriberResponse

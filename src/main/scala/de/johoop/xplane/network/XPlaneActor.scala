@@ -17,11 +17,11 @@ object XPlaneActor {
   case class Subscribe(ref: ActorRef) extends Message
   case class Unsubscribe(ref: ActorRef) extends Message
 
-  def props(channel: DatagramChannel): Props = Props(new XPlaneActor(channel))
+  def props(channel: DatagramChannel, maxResponseSize: Int): Props = Props(new XPlaneActor(channel, maxResponseSize))
 }
 
-class XPlaneActor(channel: DatagramChannel) extends Actor {
-  UDPActor.create(channel)(context) ! EventRequest(self, channel)
+class XPlaneActor(channel: DatagramChannel, maxResponseSize: Int) extends Actor {
+  context.actorOf(UDPActor.props(maxResponseSize)) ! EventRequest(self, channel)
 
   def receive: Receive = subscribedTo(Set.empty)
 

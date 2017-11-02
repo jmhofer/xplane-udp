@@ -11,3 +11,5 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats" % catsVersion,
   "com.typesafe.akka" %% "akka-stream" % akkaStreamsVersion
 )
+
+fork in run := true

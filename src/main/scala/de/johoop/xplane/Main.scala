@@ -1,43 +1,55 @@
 package de.johoop.xplane
 
+import akka.Done
+import akka.actor.ActorSystem
+import akka.stream.scaladsl.Source
+import akka.stream.{ActorMaterializer, Materializer}
 import de.johoop.xplane.api.XPlane
-import de.johoop.xplane.network._
-import de.johoop.xplane.network.protocol._
+
+import scala.concurrent.ExecutionContext.Implicits
+import scala.concurrent.Future
+import scala.util.{Failure, Success}
 
 object Main {
   def main(args: Array[String]): Unit = {
-/*
-    val becn = resolveLocalXPlaneBeacon
-    println(s"got: $becn")
+    implicit val system = ActorSystem("xplane-main")
+    implicit val mat = ActorMaterializer()
 
-    withXPlaneClient(doStuff)
-*/
+    doStuff .andThen { case _ =>
+      mat.shutdown
+      system.terminate
+    } (Implicits.global) .onComplete {
+      case Success(_) => println("Success!")
+      case Failure(e) => println(s"Failure: $e")
+    } (Implicits.global)
   }
 
-  def doStuff(client: XPlane): Unit = {
-    // TODO rewrite with new API
+  def doStuff(implicit system: ActorSystem, mat: Materializer): Future[Done] = {
+    import system.dispatcher
+
+    val plan = for {
+      source <- XPlane.subscribeToDataRefs(1,
+        "sim/flightmodel/weight/m_fixed",
+        "sim/flightmodel/weight/m_total",
+        "sim/flightmodel/weight/m_fuel[0]",
+        "sim/flightmodel/weight/m_fuel[1]",
+        "sim/aircraft/overflow/acf_num_tanks",
+        "sim/aircraft/weight/acf_m_fuel_tot")
+      _ = Thread sleep 6000L // TODO yikes, how to do this properly?
+      _ <- XPlane.setDataRef("sim/flightmodel/weight/m_fuel[0]", 153.0f)
+      _ <- XPlane.setDataRef("sim/flightmodel/weight/m_fuel[1]", 0.0f)
+    } yield source
+
+    Source
+      .fromFuture(XPlane.run(plan))
+      .flatMapConcat(identity)
+      .take(15)
+      .runForeach(println)
+
     /*
-    val send = sendTo(client)
-
-    send(RPOSRequest(1))
-
-    val dataRefs = Map(
-      42 -> "sim/flightmodel/weight/m_fixed",
-      43 -> "sim/flightmodel/weight/m_total",
-      44 -> "sim/flightmodel/weight/m_fuel[0]",
-      45 -> "sim/flightmodel/weight/m_fuel[1]",
-      46 -> "sim/aircraft/overflow/acf_num_tanks",
-      47 -> "sim/aircraft/weight/acf_m_fuel_tot")
-
-    dataRefs foreach { case (id, path) => send(RREFRequest(1, id, path)) }
-
-    XPlaneSource forClient client take 5 runForeach println
-
-    send(DREFRequest(153.0f, "sim/flightmodel/weight/m_fuel[0]"))
-    send(DREFRequest(0.0f, "sim/flightmodel/weight/m_fuel[1]"))
-    send(ALRTRequest(Vector("hello", "one", "two", "three")))
-
-    XPlaneSource forClient client take 5 runForeach println
+      val send = sendTo(client)
+      send(RPOSRequest(1))
+      send(ALRTRequest(Vector("hello", "one", "two", "three")))
     */
   }
 }

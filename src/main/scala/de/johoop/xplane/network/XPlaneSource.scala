@@ -8,12 +8,12 @@ import de.johoop.xplane.network.protocol.Payload
 
 import scala.collection.immutable.Queue
 
-class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256) extends GraphStage[SourceShape[Payload]] {
+class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit system: ActorSystem) extends GraphStage[SourceShape[Payload]] {
   val out: Outlet[Payload] = Outlet("XPlaneSource")
 
   override val shape: SourceShape[Payload] = SourceShape(out)
 
-  override def createLogic(inheritedAttributes: Attributes)(implicit system: ActorSystem): GraphStageLogic = new GraphStageLogic(shape) {
+  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private var queue = Queue.empty[Event]
     private var subscribingActor = Option.empty[ActorRef]
 
@@ -38,15 +38,15 @@ class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256) extends GraphStage
     setHandler(out, new OutHandler {
       override def onPull: Unit = pushIfAvailable
     })
-  }
 
-  private def pushIfAvailable: Unit = {
-    if (isAvailable(out)) {
-      queue.dequeueOption foreach { case (event, newQueue) =>
-        queue = newQueue
-        event match {
-          case Left(error)    => fail(out, error)
-          case Right(payload) => push(out, payload)
+    private def pushIfAvailable: Unit = {
+      if (isAvailable(out)) {
+        queue.dequeueOption foreach { case (event, newQueue) =>
+          queue = newQueue
+          event match {
+            case Left(error)    => fail(out, error)
+            case Right(payload) => push(out, payload)
+          }
         }
       }
     }
