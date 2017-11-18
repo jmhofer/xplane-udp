@@ -3,11 +3,15 @@ package de.johoop.xplane
 import java.net._
 import java.nio.ByteBuffer
 
+import akka.pattern.after
+import akka.Done
+import akka.actor.ActorSystem
 import de.johoop.xplane.network.{multicastGroup, multicastPort}
 import de.johoop.xplane.network.protocol.{BECN, Payload, XPlaneEncoder}
 import de.johoop.xplane.network.protocol.Response._
 import de.johoop.xplane.network.protocol.Message._
 
+import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{ExecutionContext, Future}
 
 class XPlaneServerMock(implicit ec: ExecutionContext) {
@@ -31,7 +35,11 @@ class XPlaneServerMock(implicit ec: ExecutionContext) {
     println("Server Mock: received a packet from: " + receivePacket.getSocketAddress)
   }
 
-  def broadcast: Unit = multicastSocket send becnPacket
+  def broadcast(initialDelay: FiniteDuration = Duration.Zero)(implicit system: ActorSystem): Future[Done] =
+    after(initialDelay, system.scheduler)(Future {
+      multicastSocket send becnPacket
+      Done
+    } (system.dispatcher))
 
   def send[T <: Payload](p: T)(implicit enc: XPlaneEncoder[T]): Unit = {
     val bytes = p.encode.array

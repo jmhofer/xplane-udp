@@ -1,6 +1,6 @@
 package de.johoop.xplane.network
 
-import akka.actor.{ActorRef, ActorSystem, PoisonPill}
+import akka.actor.{ActorContext, ActorRef, PoisonPill}
 import akka.stream.stage.{GraphStage, GraphStageLogic, OutHandler}
 import akka.stream.{Attributes, Outlet, SourceShape}
 import de.johoop.xplane.network.XPlaneClientActor.{Event, Unsubscribe}
@@ -8,7 +8,7 @@ import de.johoop.xplane.network.protocol.Payload
 
 import scala.collection.immutable.Queue
 
-class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit system: ActorSystem) extends GraphStage[SourceShape[Payload]] {
+class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit context: ActorContext) extends GraphStage[SourceShape[Payload]] {
   val out: Outlet[Payload] = Outlet("XPlaneSource")
 
   override val shape: SourceShape[Payload] = SourceShape(out)
@@ -25,7 +25,8 @@ class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit system: A
         pushIfAvailable
       }
 
-      subscribingActor = Some(system.actorOf(SubscribingActor.props(xplane, receiveCallback)))
+      println("prestart")
+      subscribingActor = Some(context.actorOf(SubscribingActor.props(xplane, receiveCallback)))
     }
 
     override def postStop: Unit = {
@@ -36,16 +37,24 @@ class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit system: A
     }
 
     setHandler(out, new OutHandler {
-      override def onPull: Unit = pushIfAvailable
+      override def onPull: Unit = {
+        println("onPull")
+        pushIfAvailable
+      }
     })
 
     private def pushIfAvailable: Unit = {
       if (isAvailable(out)) {
         queue.dequeueOption foreach { case (event, newQueue) =>
           queue = newQueue
+
+          println(s"source got event: $event")
+
           event match {
             case Left(error)    => fail(out, error)
-            case Right(payload) => push(out, payload)
+            case Right(payload) =>
+              println(s"pushing: $payload!")
+              push(out, payload)
           }
         }
       }

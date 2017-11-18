@@ -6,7 +6,6 @@ import java.nio.channels.DatagramChannel
 
 import akka.actor.ActorSystem
 import cats.implicits._
-import de.johoop.xplane.api.XPlane
 import de.johoop.xplane.network.protocol.Message._
 import de.johoop.xplane.network.protocol._
 import de.johoop.xplane.network.protocol.Response._
@@ -20,14 +19,15 @@ package object network {
 
   case class XPlaneConnection(channel: DatagramChannel, address: SocketAddress, beacon: BECN)
 
-  private[xplane] def createXPlaneClient(implicit system: ActorSystem, ec: ExecutionContext): Future[XPlane] = resolveLocalXPlaneBeacon map { beacon =>
-    val address = localXPlaneAddress(beacon)
-    val channel = returning(DatagramChannel.open) { ch =>
-      ch bind new InetSocketAddress("localhost", 0)
-      ch connect new InetSocketAddress("localhost", 49000)
+  private[xplane] def createXPlaneClient(implicit ec: ExecutionContext): Future[XPlaneConnection] =
+    resolveLocalXPlaneBeacon map { beacon =>
+      val address = localXPlaneAddress(beacon)
+      val channel = returning(DatagramChannel.open) { ch =>
+        ch bind new InetSocketAddress("localhost", 0)
+        ch connect new InetSocketAddress("localhost", 49000)
+      }
+      XPlaneConnection(channel, address, beacon)
     }
-    XPlaneConnection(channel, address, beacon)
-  }
 
   private[xplane] def sendTo[T <: Request](connection: XPlaneConnection)(request: T)(implicit enc: XPlaneEncoder[T]): Unit = {
     println(s"network: sending request $request from ${connection.channel.getLocalAddress} to ${connection.address}")

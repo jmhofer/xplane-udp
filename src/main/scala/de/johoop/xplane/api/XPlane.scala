@@ -6,17 +6,16 @@ import java.nio.channels.DatagramChannel
 import akka.{Done, NotUsed}
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.pattern.ask
-import akka.stream.Materializer
-import akka.stream.scaladsl.{Sink, Source}
-import cats.data.State
+import akka.stream.scaladsl.Source
+import akka.util.Timeout
 import de.johoop.xplane.api.XPlaneActor.{Subscribe, Unsubscribe, UnsubscribeAll}
 import de.johoop.xplane.network
 import de.johoop.xplane.network.{XPlaneClientActor, XPlaneConnection, XPlaneSource}
 import de.johoop.xplane.network.protocol._
 import de.johoop.xplane.network.protocol.Request._
+import de.johoop.xplane.util.returning
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.control.NonFatal
 
 case class XPlane private[xplane] (
   private[xplane] val address: SocketAddress,
@@ -26,11 +25,13 @@ case class XPlane private[xplane] (
   private[xplane] val nextDataRefIndex: Int = 0)
 
 object XPlaneApi {
-  def connect(implicit system: ActorSystem, ec: ExecutionContext): Future[ConnectedXPlaneApi] = network.createXPlaneClient map (new ConnectedXPlaneApi(_))
+  def connect(implicit system: ActorSystem, ec: ExecutionContext, timeout: Timeout): Future[ConnectedXPlaneApi] =
+    network.createXPlaneClient map (new ConnectedXPlaneApi(_))
 }
 
 // TODO maybe also handle RPOS
-class ConnectedXPlaneApi(connection: XPlaneConnection)(implicit system: ActorSystem, ec: ExecutionContext) {
+class ConnectedXPlaneApi(connection: XPlaneConnection)
+                        (implicit system: ActorSystem, ec: ExecutionContext, timeout: Timeout) {
   private val xplane: ActorRef = system.actorOf(XPlaneActor.props(connection))
 
   val beacon: BECN = connection.beacon
@@ -49,17 +50,17 @@ class ConnectedXPlaneApi(connection: XPlaneConnection)(implicit system: ActorSys
 class XPlaneActor(connection: XPlaneConnection) extends Actor {
   val clientActor: ActorRef = context.actorOf(XPlaneClientActor.props(connection.channel, maxResponseSize = 4096))
 
-  def receive: Receive = receiveWithDataRefs(nextDataRefIndex = 0, registeredDataRefs = Map.empty)
+  def receive: Receive = receiveWithDataRefs(nextDataRefIndex = 0, subscribedDataRefs = Map.empty)
 
   def receiveWithDataRefs(nextDataRefIndex: Int, subscribedDataRefs: String Map Int): Receive = {
     case Subscribe(frequency, dataRefs) =>
-      val newlySubscribed = dataRefs zip (Stream from currentIndex)
+      val newlySubscribed = dataRefs zip (Stream from nextDataRefIndex)
 
       newlySubscribed foreach { case (ref, idx) =>
         network.sendTo(connection)(RREFRequest(frequency, idx, ref))
       }
 
-      context become receiveWithDataRefs(nextDataRefIndex + newlySubscribed.size, subscribedDataRefs + newlySubscribed)
+      context become receiveWithDataRefs(nextDataRefIndex + newlySubscribed.size, subscribedDataRefs ++ newlySubscribed)
 
       sender() ! Source
         .fromGraph(new XPlaneSource(clientActor))
@@ -70,7 +71,7 @@ class XPlaneActor(connection: XPlaneConnection) extends Actor {
         }
         .filter(_.nonEmpty)
 
-    case Unsubscribe(dataRefs: Array[String]) =>
+    case Unsubscribe(dataRefs) =>
       val unsubscribeFrom = subscribedDataRefs filter { case (path, _) => dataRefs contains path }
 
       unsubscribeFrom map { case (path, idx) =>
@@ -94,65 +95,9 @@ class XPlaneActor(connection: XPlaneConnection) extends Actor {
 
 object XPlaneActor {
   sealed trait Message
-  case class Subscribe(frequency: Int, dataRefs: Array[String])
-  case class Unsubscribe(dataRefs: Array[String])
+  case class Subscribe(frequency: Int, dataRefs: Seq[String])
+  case class Unsubscribe(dataRefs: Seq[String])
   case object UnsubscribeAll
 
   def props(connection: XPlaneConnection): Props = Props(new XPlaneActor(connection))
-}
-
-// TODO maybe also handle RPOS
-// TODO probably, state monad and streams are too incompatible - maybe, this should actually be an actor instead
-object XPlane {
-  def subscribeToDataRefs(frequency: Int, dataRefs: String*)(implicit system: ActorSystem): State[XPlane, Source[String Map Float, NotUsed]] = for {
-    xplane <- State.get[XPlane]
-    currentIndex = xplane.nextDataRefIndex
-    newlyRegistered = dataRefs zip (Stream from currentIndex)
-    _ = newlyRegistered foreach { case (ref, idx) =>
-      network.sendTo(xplane)(RREFRequest(frequency, idx, ref))
-    }
-    _ = State set xplane.copy(
-          registeredDataRefs = xplane.registeredDataRefs ++ newlyRegistered,
-          nextDataRefIndex = currentIndex + newlyRegistered.size)
-  } yield Source
-    .fromGraph(new XPlaneSource(xplane.actor))
-    .collect { case RREF(receivedRefs) =>
-      receivedRefs flatMap { case (idx, value) =>
-        newlyRegistered.find(_._2 == idx).map { path => (path._1, value) }
-      }
-    }
-    .filter(_.nonEmpty)
-
-  def unsubscribeFromDataRefs(dataRefs: String*): State[XPlane, Unit] = for {
-    xplane <- State.get[XPlane]
-    unsubscribeFrom = xplane.registeredDataRefs filter { case (path, _) => dataRefs contains path }
-    _ = unsubscribeFrom map { case (path, idx) => RREFRequest(frequency = 0, idx, path) } foreach network.sendTo(xplane)
-    _ = State set xplane.copy(
-      registeredDataRefs = xplane.registeredDataRefs -- unsubscribeFrom.keys
-    )
-  } yield ()
-
-  def getDataRef(dataRef: String)(implicit system: ActorSystem, mat: Materializer): State[XPlane, Future[Float]] = for {
-    source <- subscribeToDataRefs(100, dataRef)
-    value = source .map (_ get dataRef) .collect { case Some(value) => value } .runWith(Sink.head)
-    _ <- unsubscribeFromDataRefs(dataRef)
-  } yield value
-
-  def setDataRef(dataRef: String, value: Float): State[XPlane, Unit] = for {
-    xplane <- State.get[XPlane]
-    _ = network.sendTo(xplane)(DREFRequest(value, dataRef))
-  } yield ()
-
-  def close: State[XPlane, Unit] = for { // FIXME this won't do...
-    xplane <- State.get[XPlane]
-    _ <- unsubscribeFromDataRefs(xplane.registeredDataRefs)
-    _ = xplane.channel.close
-  } yield ()
-
-  def run[A](plan: State[XPlane, A])(implicit system: ActorSystem, ec: ExecutionContext): Future[A] = {
-    network.createXPlaneClient map { xplane =>
-      val (updated, a) = plan.run(xplane).value
-      a
-    }
-  }
 }

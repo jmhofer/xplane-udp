@@ -27,6 +27,7 @@ object Main {
   def doStuff(implicit system: ActorSystem, mat: Materializer): Future[Done] = {
     import system.dispatcher
 
+    /*
     val plan = for {
       source <- XPlane.subscribeToDataRefs(1,
         "sim/flightmodel/weight/m_fixed",
@@ -46,10 +47,10 @@ object Main {
       .take(15)
       .runForeach(println)
 
-    /*
       val send = sendTo(client)
       send(RPOSRequest(1))
       send(ALRTRequest(Vector("hello", "one", "two", "three")))
     */
+    Future.successful(Done)
   }
 }

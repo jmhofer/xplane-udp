@@ -31,7 +31,9 @@ class UDPActor(maxResponseSize: Int) extends Actor {
 
   def receive: Receive = {
     case request: EventRequest =>
-      println(s"UdpActor: request $request, ${request.channel.getLocalAddress}!")
+      println(s"UdpActor: request $request")
+      println(s"${request.channel.getLocalAddress}!")
+
       pipe(Future {
         response.clear
         println(s"UdpActor: waiting for a packet at ${request.channel.getLocalAddress}...")
