@@ -3,7 +3,8 @@ package de.johoop.xplane.network.protocol
 import java.nio.{ByteBuffer, ByteOrder}
 
 import de.johoop.xplane.network.protocol.Message._
-import de.johoop.xplane.util.{returning, string}
+import de.johoop.xplane.network.protocol.Request.encodeHelper
+import de.johoop.xplane.util.{ascii, returning, string}
 
 import scala.annotation.tailrec
 
@@ -50,6 +51,16 @@ object Response {
     ))
   }
 
+  implicit val BECNEncoder: XPlaneEncoder[BECN] = encodeHelper[BECN](522, "BECN") { (msg, b) =>
+    b.put(msg.majorVersion.toByte)
+    b.put(msg.minorVersion.toByte)
+    b.putInt(msg.hostId)
+    b.putInt(msg.versionNumber)
+    b.putInt(msg.role)
+    b.putShort(msg.port.toShort)
+    ascii(b, msg.computerName, 500)
+  }
+
   implicit object RPOSDecoder extends XPlaneDecoder[RPOS] {
     def decode(b: ByteBuffer): Either[ProtocolError, RPOS] = Right(RPOS(
       longitude = b.getDouble,
@@ -77,6 +88,13 @@ object Response {
       }
 
       Right(RREF(loop()))
+    }
+  }
+
+  implicit val RREFEncoder: XPlaneEncoder[RREF] = encodeHelper[RREF](1024, "RREF") { (msg, b) =>
+    msg.dataRefs foreach { case (id, value) =>
+      b.putInt(id)
+      b.putFloat(value)
     }
   }
 

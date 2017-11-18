@@ -15,35 +15,37 @@ import de.johoop.xplane.util.returning
 import scala.concurrent.{ExecutionContext, Future}
 
 package object network {
-  private[xplane] def withXPlane[T](op: XPlane => T, onError: PartialFunction[Throwable, T])
-                                   (implicit system: ActorSystem, ec: ExecutionContext): Future[T] =
-    createXPlaneClient map { xplane =>
-      try op(xplane) finally {
-        xplane.registeredDataRefs foreach { case (path, index) =>
-          network.sendTo(xplane)(RREFRequest(0, index, path)) // clean up udp subscriptions
-        }
-        xplane.channel.close
-      }
-    } recover onError
+  private[xplane] val multicastGroup = InetAddress getByName "239.255.1.1"
+  private[xplane] val multicastPort = 49707
 
-  private def createXPlaneClient(implicit system: ActorSystem, ec: ExecutionContext): Future[XPlane] = resolveLocalXPlaneBeacon map localXPlaneAddress map { address =>
-    val channel = returning(DatagramChannel.open)(_ bind null)
-    XPlane(address, channel, system.actorOf(XPlaneActor.props(channel, maxResponseSize = 4096)))
+  case class XPlaneConnection(channel: DatagramChannel, address: SocketAddress, beacon: BECN)
+
+  private[xplane] def createXPlaneClient(implicit system: ActorSystem, ec: ExecutionContext): Future[XPlane] = resolveLocalXPlaneBeacon map { beacon =>
+    val address = localXPlaneAddress(beacon)
+    val channel = returning(DatagramChannel.open) { ch =>
+      ch bind new InetSocketAddress("localhost", 0)
+      ch connect new InetSocketAddress("localhost", 49000)
+    }
+    XPlaneConnection(channel, address, beacon)
   }
 
-  private[xplane] def sendTo[T <: Request](client: XPlane)(request: T)(implicit enc: XPlaneEncoder[T]): Unit = client.channel.send(request.encode, client.address)
+  private[xplane] def sendTo[T <: Request](connection: XPlaneConnection)(request: T)(implicit enc: XPlaneEncoder[T]): Unit = {
+    println(s"network: sending request $request from ${connection.channel.getLocalAddress} to ${connection.address}")
+    connection.channel.send(request.encode, connection.address)
+  }
 
   private[network] def localXPlaneAddress(becn: BECN): SocketAddress = new InetSocketAddress(InetAddress.getByName("127.0.0.1"), becn.port)
 
-  private[xplane] def resolveLocalXPlaneBeacon(implicit ec: ExecutionContext): Future[BECN] = Future {
-    val socket = new MulticastSocket(49707)
+  private[xplane] def resolveLocalXPlaneBeacon(implicit ec: ExecutionContext): Future[BECN] = Future { // TODO the future here is maybe a bit overkill
+    val socket = new MulticastSocket(multicastPort)
     val buf = try {
-      socket.joinGroup(InetAddress.getByName("239.255.1.1"))
+      socket joinGroup multicastGroup
       returning(ByteBuffer.allocate(1024)) { b => socket.receive(new DatagramPacket(b.array, b.array.length)) }
     } finally socket.close
 
-    buf.decode[BECN] valueOr { other =>
-      throw ProtocolError(s"expected a BECN response, but got: $other")
-    }
+    buf.decode[Payload] flatMap {
+      case becn: BECN => Right(becn)
+      case other => throw ProtocolError(s"expected a BECN, but got: $other")
+    } valueOr { throw _ }
   }
 }

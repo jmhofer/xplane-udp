@@ -3,7 +3,7 @@ package de.johoop.xplane.network
 import akka.actor.{Actor, ActorRef, Props}
 import akka.stream.stage.AsyncCallback
 import de.johoop.xplane.network.SubscribingActor.SubscriberResponse
-import de.johoop.xplane.network.XPlaneActor.{Event, Subscribe}
+import de.johoop.xplane.network.XPlaneClientActor.{Event, Subscribe}
 
 object SubscribingActor {
   sealed trait Message

@@ -3,7 +3,7 @@ package de.johoop.xplane.network
 import akka.actor.{ActorRef, ActorSystem, PoisonPill}
 import akka.stream.stage.{GraphStage, GraphStageLogic, OutHandler}
 import akka.stream.{Attributes, Outlet, SourceShape}
-import de.johoop.xplane.network.XPlaneActor.{Event, Unsubscribe}
+import de.johoop.xplane.network.XPlaneClientActor.{Event, Unsubscribe}
 import de.johoop.xplane.network.protocol.Payload
 
 import scala.collection.immutable.Queue
