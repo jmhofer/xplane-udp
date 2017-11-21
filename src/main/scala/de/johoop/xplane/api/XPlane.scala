@@ -42,7 +42,11 @@ class ConnectedXPlaneApi(connection: XPlaneConnection)
   def unsubscribeFromDataRefs(dataRefs: String*): Future[Done] = xplane.ask(Unsubscribe(dataRefs)).mapTo[Done]
 
   def getDataRef(dataRef: String): Future[Float] = ??? // TODO implement
-  def setDataRef(dataRef: String, value: Float): Future[Done] = ??? // TODO implement
+
+  def setDataRef(dataRef: String, value: Float): Future[Done] = Future {
+    network.sendTo(connection)(DREFRequest(value, dataRef))
+    Done
+  }
 
   def disconnect: Future[Done] = returning(xplane.ask(UnsubscribeAll).mapTo[Done]) { _ => connection.channel.close }
 }
@@ -50,7 +54,7 @@ class ConnectedXPlaneApi(connection: XPlaneConnection)
 class XPlaneActor(connection: XPlaneConnection) extends Actor {
   val clientActor: ActorRef = context.actorOf(XPlaneClientActor.props(connection.channel, maxResponseSize = 4096))
 
-  def receive: Receive = receiveWithDataRefs(nextDataRefIndex = 0, subscribedDataRefs = Map.empty)
+  def receive: Receive = receiveWithDataRefs(nextDataRefIndex = 1, subscribedDataRefs = Map.empty)
 
   def receiveWithDataRefs(nextDataRefIndex: Int, subscribedDataRefs: String Map Int): Receive = {
     case Subscribe(frequency, dataRefs) =>

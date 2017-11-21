@@ -2,10 +2,11 @@ package de.johoop.xplane
 
 import akka.Done
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.Source
 import akka.stream.{ActorMaterializer, Materializer}
-import de.johoop.xplane.api.XPlane
+import akka.util.Timeout
+import de.johoop.xplane.api.XPlaneApi
 
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -25,32 +26,26 @@ object Main {
   }
 
   def doStuff(implicit system: ActorSystem, mat: Materializer): Future[Done] = {
+    implicit val timeout: Timeout = Timeout(1 second)
     import system.dispatcher
 
-    /*
-    val plan = for {
-      source <- XPlane.subscribeToDataRefs(1,
+    XPlaneApi.connect flatMap { api =>
+      val source = api.subscribeToDataRefs(1,
         "sim/flightmodel/weight/m_fixed",
         "sim/flightmodel/weight/m_total",
         "sim/flightmodel/weight/m_fuel[0]",
         "sim/flightmodel/weight/m_fuel[1]",
         "sim/aircraft/overflow/acf_num_tanks",
         "sim/aircraft/weight/acf_m_fuel_tot")
-      _ = Thread sleep 6000L // TODO yikes, how to do this properly?
-      _ <- XPlane.setDataRef("sim/flightmodel/weight/m_fuel[0]", 153.0f)
-      _ <- XPlane.setDataRef("sim/flightmodel/weight/m_fuel[1]", 0.0f)
-    } yield source
 
-    Source
-      .fromFuture(XPlane.run(plan))
-      .flatMapConcat(identity)
-      .take(15)
-      .runForeach(println)
+      // TODO do something with the source, change some dataref, check
 
-      val send = sendTo(client)
-      send(RPOSRequest(1))
-      send(ALRTRequest(Vector("hello", "one", "two", "three")))
-    */
-    Future.successful(Done)
+      api.disconnect
+    }
+
+// example for modifying the fuel tank load of the plane
+// setDataRef("sim/flightmodel/weight/m_fuel[0]", 153.0f)
+// setDataRef("sim/flightmodel/weight/m_fuel[1]", 0.0f)
+
   }
 }

@@ -27,18 +27,12 @@ class XPlaneClientActor(channel: DatagramChannel, maxResponseSize: Int) extends 
 
   def subscribedTo(subscribers: Set[ActorRef]): Receive = {
     case Response(event) =>
-      println(s"received: Response($event)")
-      subscribers foreach { sub =>
-        println(s"yay, got a subscriber!")
-        sub ! SubscriberResponse(event)
-      }
+      subscribers foreach { _ ! SubscriberResponse(event) }
 
     case Subscribe(ref) =>
-      println(s"received: Subscribe($ref)")
       context.become(subscribedTo(subscribers + ref))
 
     case Unsubscribe(ref) =>
-      println(s"received: Unsubscribe($ref)")
       context.become(subscribedTo(subscribers - ref))
   }
 }

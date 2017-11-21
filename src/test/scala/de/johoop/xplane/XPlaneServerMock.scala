@@ -14,7 +14,7 @@ import de.johoop.xplane.network.protocol.Message._
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{ExecutionContext, Future}
 
-class XPlaneServerMock(implicit ec: ExecutionContext) {
+class XPlaneServerMock(implicit ec: ExecutionContext) { // TODO probably get rid of this execution context, it's a bit unsafe
   val multicastSocket = new DatagramSocket
 
   val payloadAddress = InetAddress getByName "localhost"
@@ -29,10 +29,10 @@ class XPlaneServerMock(implicit ec: ExecutionContext) {
 
   val becnPacket = new DatagramPacket(bytes, bytes.length, multicastGroup, multicastPort)
 
-  Future {
+  Future { // TODO this only receives once, and it blocks a thread, clean this up
     receiveBuffer.clear
     payloadSocket.receive(receivePacket)
-    println("Server Mock: received a packet from: " + receivePacket.getSocketAddress)
+    println("Server Mock: received a packet from: " + receivePacket.getSocketAddress) // TODO instead, actually store so that it can be checked by the tests
   }
 
   def broadcast(initialDelay: FiniteDuration = Duration.Zero)(implicit system: ActorSystem): Future[Done] =
@@ -44,7 +44,6 @@ class XPlaneServerMock(implicit ec: ExecutionContext) {
   def send[T <: Payload](p: T)(implicit enc: XPlaneEncoder[T]): Unit = {
     val bytes = p.encode.array
     val packet = new DatagramPacket(bytes, bytes.length, payloadAddress, receivePacket.getPort)
-    println("Server Mock: sending to " + receivePacket.getSocketAddress)
     payloadSocket send packet
   }
 

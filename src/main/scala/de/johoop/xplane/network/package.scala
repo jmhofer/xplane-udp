@@ -4,7 +4,6 @@ import java.net._
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 
-import akka.actor.ActorSystem
 import cats.implicits._
 import de.johoop.xplane.network.protocol.Message._
 import de.johoop.xplane.network.protocol._
@@ -30,7 +29,6 @@ package object network {
     }
 
   private[xplane] def sendTo[T <: Request](connection: XPlaneConnection)(request: T)(implicit enc: XPlaneEncoder[T]): Unit = {
-    println(s"network: sending request $request from ${connection.channel.getLocalAddress} to ${connection.address}")
     connection.channel.send(request.encode, connection.address)
   }
 

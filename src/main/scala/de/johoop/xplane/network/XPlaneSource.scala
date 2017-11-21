@@ -25,7 +25,6 @@ class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit context: 
         pushIfAvailable
       }
 
-      println("prestart")
       subscribingActor = Some(context.actorOf(SubscribingActor.props(xplane, receiveCallback)))
     }
 
@@ -38,7 +37,6 @@ class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit context: 
 
     setHandler(out, new OutHandler {
       override def onPull: Unit = {
-        println("onPull")
         pushIfAvailable
       }
     })
@@ -48,12 +46,9 @@ class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit context: 
         queue.dequeueOption foreach { case (event, newQueue) =>
           queue = newQueue
 
-          println(s"source got event: $event")
-
           event match {
             case Left(error)    => fail(out, error)
             case Right(payload) =>
-              println(s"pushing: $payload!")
               push(out, payload)
           }
         }

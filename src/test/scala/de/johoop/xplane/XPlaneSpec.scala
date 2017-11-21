@@ -67,9 +67,9 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll 
       api.subscribeToDataRefs(100, "/mock/dataref").toMat(Sink.head)(Keep.right).run()
     }
 
-    after(500 millis, system.scheduler)(Future(mock.send(RREF(Map.empty))))
+    after(500 millis, system.scheduler)(Future(mock.send(RREF(Map(1 -> 1.0f)))))
 
-    dataRefs must beEqualTo(Map()).await
+    dataRefs must beEqualTo(Map("/mock/dataref" -> 1.0f)).await
   }
 
   private def withConnectedApi[T](op: ConnectedXPlaneApi => Future[T]): Future[T] =

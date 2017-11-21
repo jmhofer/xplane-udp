@@ -1,13 +1,14 @@
 # xplane-udp
 
-Experiments with a UDP client for X-Plane.
+Experiments with a UDP client for [X-Plane](http://www.x-plane.com), an awesome flight simulator.
 
 # Purpose
 
 The purpose of this project is to provide a Scala library with a good API to access
 X-Plane easily via UDP.
 
-This enables you to read a lot of "data refs" from X-Plane, and also to remote control it.
+This enables you to read a lot of "data refs" from X-Plane, thus enabling you to track your flights, 
+and also to remote control the simulation.
 
 # Status
 
