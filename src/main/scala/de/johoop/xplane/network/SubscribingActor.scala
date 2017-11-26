@@ -17,7 +17,7 @@ class SubscribingActor(xplane: ActorRef, callback: AsyncCallback[Event]) extends
 
   def receive: Receive = {
     case SubscriberResponse(event) =>
-      log debug s"subscribed: $event"
+      log debug s"subscriber received: $event"
       callback.invoke(event)
   }
 }

@@ -6,26 +6,24 @@ import akka.stream.{Attributes, Outlet, SourceShape}
 import de.johoop.xplane.network.XPlaneClientActor.{Event, Unsubscribe}
 import de.johoop.xplane.network.protocol.Payload
 
-import scala.collection.immutable.Queue
-
-class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit context: ActorContext) extends GraphStage[SourceShape[Payload]] {
+class XPlaneSource(xplane: ActorRef)(implicit context: ActorContext) extends GraphStage[SourceShape[Payload]] {
   val out: Outlet[Payload] = Outlet("XPlaneSource")
 
   override val shape: SourceShape[Payload] = SourceShape(out)
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
-    private var queue = Queue.empty[Event]
+    private var value = Option.empty[Event]
     private var subscribingActor = Option.empty[ActorRef]
 
     override def preStart: Unit = {
       super.preStart
 
       val receiveCallback = getAsyncCallback[Event] { event =>
-        if (queue.size < maxQueueSize) queue = queue enqueue event // if downstream doesn't keep up, events will simply be dropped
+        value = Some(event) // always drop and replace older events
         pushIfAvailable
       }
 
-      subscribingActor = Some(context.actorOf(SubscribingActor.props(xplane, receiveCallback), "subscriber"))
+      subscribingActor = Some(context.actorOf(SubscribingActor.props(xplane, receiveCallback)))
     }
 
     override def postStop: Unit = {
@@ -43,8 +41,8 @@ class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit context: 
 
     private def pushIfAvailable: Unit = {
       if (isAvailable(out)) {
-        queue.dequeueOption foreach { case (event, newQueue) =>
-          queue = newQueue
+        value foreach { event =>
+          value = None
 
           event match {
             case Left(error)    => fail(out, error)

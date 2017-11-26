@@ -1,7 +1,7 @@
 package de.johoop.xplane.api
 
-import java.net.{InetAddress, SocketAddress}
-import java.nio.channels.{ClosedChannelException, DatagramChannel}
+import java.net.InetAddress
+import java.nio.channels.ClosedChannelException
 
 import akka.{Done, NotUsed}
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props}
@@ -16,13 +16,6 @@ import de.johoop.xplane.network.protocol._
 import de.johoop.xplane.network.protocol.Request._
 
 import scala.concurrent.{ExecutionContext, Future}
-
-case class XPlane private[xplane] (
-  private[xplane] val address: SocketAddress,
-  private[xplane] val channel: DatagramChannel,
-  private[xplane] val actor: ActorRef,
-  private[xplane] val registeredDataRefs: String Map Int = Map.empty,
-  private[xplane] val nextDataRefIndex: Int = 0)
 
 object XPlaneApi {
   def connect(multicastGroupName: String = "239.255.1.1", multicastPort: Int = 49707)(implicit system: ActorSystem, ec: ExecutionContext, timeout: Timeout): Future[ConnectedXPlaneApi] =

@@ -2,6 +2,7 @@ package de.johoop.xplane
 
 import akka.Done
 import akka.actor.ActorSystem
+import akka.pattern.after
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.Timeout
@@ -20,7 +21,7 @@ object Main {
     doStuff .andThen { case _ =>
       mat.shutdown
       system.terminate
-    } (Implicits.global) .onComplete {
+    } (Implicits.global) .onComplete { // TODO make sure that this actually manages to stop the application
       case Success(_) => println("Success!")
       case Failure(e) => println(s"Failure: $e")
     } (Implicits.global)
@@ -33,35 +34,54 @@ object Main {
     XPlaneApi.connect() flatMap { api =>
       println("Beacon: " + api.beacon)
 
-      val source = api.subscribeToDataRefs(1,
-        "sim/flightmodel/weight/m_fixed",
-        "sim/flightmodel/weight/m_total",
-        "sim/flightmodel/weight/m_fuel[0]",
-        "sim/flightmodel/weight/m_fuel[1]",
-        "sim/aircraft/overflow/acf_num_tanks",
-        "sim/aircraft/weight/acf_m_fuel_tot")
+      // fixed weight: "sim/flightmodel/weight/m_fixed"
+      // number of fuel tanks: "sim/aircraft/overflow/acf_num_tanks"
+      // total fuel capacity: "sim/aircraft/weight/acf_m_fuel_tot"
+      // total weight: "sim/flightmodel/weight/m_total",
 
-      val done = source
-        .take(15)
-        .idleTimeout(20 seconds)
+      api.getDataRef("sim/aircraft/weight/acf_m_fuel_tot") foreach { totalFuelCapacity =>
+        // FIXME somehow, unsubscribing seems to get into conflict with the other received values
+        // TODO check what might be going on here, and that it's not a bug on the X-Plane side
+        println("Total fuel capacity: " + totalFuelCapacity)
+      }
+
+      val sourceForLeftFuel = api.subscribeToDataRefs(1, "sim/flightmodel/weight/m_fuel[0]")
+
+      val doneLeftFuel = sourceForLeftFuel
+        .take(10)
+        .idleTimeout(12 seconds)
         .toMat(Sink.foreach { dataRefs =>
-          println("DataRefs:")
+          println("Left Fuel:")
           println(dataRefs.toSeq.mkString("\n"))
           println()
         })(Keep.right)
         .run()
 
-      // TODO do something with the source, change some dataref, check
+      val sourceForRightFuel = api.subscribeToDataRefs(1, "sim/flightmodel/weight/m_fuel[1]")
+
+      val doneRightFuel = sourceForRightFuel
+        .take(10)
+        .idleTimeout(12 seconds)
+        .toMat(Sink.foreach { dataRefs =>
+          println("Right Fuel:")
+          println(dataRefs.toSeq.mkString("\n"))
+          println()
+        })(Keep.right)
+        .run()
+
+      after(5 seconds, using = system.scheduler) {
+        api.setDataRef("sim/flightmodel/weight/m_fuel[1]", 0.0f)
+      }
+
+      val done = for {
+        left <- doneLeftFuel
+        right <- doneRightFuel
+      } yield Done
 
       done recover { case e =>
           println(s"failed: ${e.getMessage}")
           Done
       } andThen { case _ => api.disconnect }
     }
-
-// example for modifying the fuel tank load of the plane
-// setDataRef("sim/flightmodel/weight/m_fuel[0]", 153.0f)
-// setDataRef("sim/flightmodel/weight/m_fuel[1]", 0.0f)
-
   }
 }
