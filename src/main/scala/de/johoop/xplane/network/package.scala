@@ -3,6 +3,7 @@ package de.johoop.xplane
 import java.net._
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
+import java.util.concurrent.Executors
 
 import cats.implicits._
 import de.johoop.xplane.network.protocol.Message._
@@ -34,7 +35,7 @@ package object network {
 
   private[network] def localXPlaneAddress(becn: BECN): SocketAddress = new InetSocketAddress(InetAddress.getByName("127.0.0.1"), becn.port)
 
-  private[xplane] def resolveLocalXPlaneBeacon(implicit ec: ExecutionContext): Future[BECN] = Future { // TODO the future here is maybe a bit overkill
+  private[xplane] def resolveLocalXPlaneBeacon: Future[BECN] = Future {
     val socket = new MulticastSocket(multicastPort)
     val buf = try {
       socket joinGroup multicastGroup
@@ -45,5 +46,5 @@ package object network {
       case becn: BECN => Right(becn)
       case other => throw ProtocolError(s"expected a BECN, but got: $other")
     } valueOr { throw _ }
-  }
+  } (ExecutionContext fromExecutor Executors.newSingleThreadExecutor)
 }

@@ -1,10 +1,10 @@
 package de.johoop.xplane.api
 
 import java.net.SocketAddress
-import java.nio.channels.DatagramChannel
+import java.nio.channels.{ClosedChannelException, DatagramChannel}
 
 import akka.{Done, NotUsed}
-import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props}
 import akka.pattern.ask
 import akka.stream.scaladsl.Source
 import akka.util.Timeout
@@ -32,7 +32,7 @@ object XPlaneApi {
 // TODO maybe also handle RPOS
 class ConnectedXPlaneApi(connection: XPlaneConnection)
                         (implicit system: ActorSystem, ec: ExecutionContext, timeout: Timeout) {
-  private val xplane: ActorRef = system.actorOf(XPlaneActor.props(connection))
+  private val xplane: ActorRef = system.actorOf(XPlaneActor.props(connection), "xplane")
 
   val beacon: BECN = connection.beacon
 
@@ -48,16 +48,21 @@ class ConnectedXPlaneApi(connection: XPlaneConnection)
     Done
   }
 
-  def disconnect: Future[Done] = returning(xplane.ask(UnsubscribeAll).mapTo[Done]) { _ => connection.channel.close }
+  def disconnect: Future[Done] = xplane ? UnsubscribeAll map { _ =>
+    xplane ! PoisonPill
+    connection.channel.close
+    Done
+  }
 }
 
-class XPlaneActor(connection: XPlaneConnection) extends Actor {
-  val clientActor: ActorRef = context.actorOf(XPlaneClientActor.props(connection.channel, maxResponseSize = 4096))
+class XPlaneActor(connection: XPlaneConnection) extends Actor with ActorLogging {
+  val clientActor: ActorRef = context.actorOf(XPlaneClientActor.props(connection.channel, maxResponseSize = 4096), "xplane-client")
 
   def receive: Receive = receiveWithDataRefs(nextDataRefIndex = 1, subscribedDataRefs = Map.empty)
 
   def receiveWithDataRefs(nextDataRefIndex: Int, subscribedDataRefs: String Map Int): Receive = {
     case Subscribe(frequency, dataRefs) =>
+      log debug s"subscribe($frequency, $dataRefs)"
       val newlySubscribed = dataRefs zip (Stream from nextDataRefIndex)
 
       newlySubscribed foreach { case (ref, idx) =>
@@ -76,6 +81,7 @@ class XPlaneActor(connection: XPlaneConnection) extends Actor {
         .filter(_.nonEmpty)
 
     case Unsubscribe(dataRefs) =>
+      log debug s"unsubscribe($dataRefs)"
       val unsubscribeFrom = subscribedDataRefs filter { case (path, _) => dataRefs contains path }
 
       unsubscribeFrom map { case (path, idx) =>
@@ -89,7 +95,12 @@ class XPlaneActor(connection: XPlaneConnection) extends Actor {
     case UnsubscribeAll =>
       subscribedDataRefs map { case (path, idx) =>
         RREFRequest(frequency = 0, idx, path)
-      } foreach network.sendTo(connection)
+      } foreach { req =>
+        try network.sendTo(connection)(req)
+        catch { case e: ClosedChannelException =>
+          log warning "trying to unsubscribe from already closed channel"
+        }
+      }
 
       context become receive
 

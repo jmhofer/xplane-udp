@@ -25,7 +25,7 @@ class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit context: 
         pushIfAvailable
       }
 
-      subscribingActor = Some(context.actorOf(SubscribingActor.props(xplane, receiveCallback)))
+      subscribingActor = Some(context.actorOf(SubscribingActor.props(xplane, receiveCallback), "subscriber"))
     }
 
     override def postStop: Unit = {
@@ -48,8 +48,7 @@ class XPlaneSource(xplane: ActorRef, maxQueueSize: Int = 256)(implicit context: 
 
           event match {
             case Left(error)    => fail(out, error)
-            case Right(payload) =>
-              push(out, payload)
+            case Right(payload) => push(out, payload)
           }
         }
       }

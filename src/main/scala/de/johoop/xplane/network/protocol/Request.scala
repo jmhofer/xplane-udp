@@ -2,7 +2,8 @@ package de.johoop.xplane.network.protocol
 
 import java.nio.{ByteBuffer, ByteOrder}
 
-import de.johoop.xplane.util.{ascii, returning}
+import de.johoop.xplane.network.protocol.Message.ProtocolError
+import de.johoop.xplane.util.{ascii, returning, string}
 
 sealed abstract class Request extends Message
 
@@ -12,31 +13,42 @@ case class RREFRequest(frequency: Int, id: Int, path: String) extends Request
 case class ALRTRequest(msgs: Vector[String]) extends Request
 
 object Request {
-  implicit object RequestEncoder extends XPlaneEncoder[Request] { // TODO maybe this can be "automatic" using Shapeless
-    override def encode(req: Request): ByteBuffer = req match {
-      case rpos: RPOSRequest => RPOSEncoder encode rpos
-      case dref: DREFRequest => DREFEncoder encode dref
-      case rref: RREFRequest => RREFEncoder encode rref
-      case alrt: ALRTRequest => ALRTEncoder encode alrt
+  implicit object RequestDecoder extends XPlaneDecoder[Request] {
+    def decode(b: ByteBuffer): Either[ProtocolError, Request] = {
+      b.rewind
+      b.order(ByteOrder.LITTLE_ENDIAN)
+      returning(string(b, 4))(_ => b.get) match {
+        case "RREF" => Right(RREFRequest(0, 0, ""))
+        case other => Left(ProtocolError(s"unknown request: $other"))
+      }
     }
   }
 
-  implicit val RPOSEncoder: XPlaneEncoder[RPOSRequest] = encodeHelper[RPOSRequest](16, "RPOS") { (msg, b) =>
+  implicit object RequestEncoder extends XPlaneEncoder[Request] { // TODO maybe this can be "automatic" using Shapeless
+    override def encode(req: Request): ByteBuffer = req match {
+      case rpos: RPOSRequest => RPOSRequestEncoder encode rpos
+      case dref: DREFRequest => DREFRequestEncoder encode dref
+      case rref: RREFRequest => RREFRequestEncoder encode rref
+      case alrt: ALRTRequest => ALRTRequestEncoder encode alrt
+    }
+  }
+
+  implicit val RPOSRequestEncoder: XPlaneEncoder[RPOSRequest] = encodeHelper[RPOSRequest](16, "RPOS") { (msg, b) =>
     ascii(b, msg.positionsPerSecond.toString)
   }
 
-  implicit val DREFEncoder: XPlaneEncoder[DREFRequest] = encodeHelper[DREFRequest](509, "DREF") { (msg, b) =>
+  implicit val DREFRequestEncoder: XPlaneEncoder[DREFRequest] = encodeHelper[DREFRequest](509, "DREF") { (msg, b) =>
     b.putFloat(msg.value)
     ascii(b, msg.path)
   }
 
-  implicit val RREFEncoder: XPlaneEncoder[RREFRequest] = encodeHelper[RREFRequest](413, "RREF") { (msg, b) =>
+  implicit val RREFRequestEncoder: XPlaneEncoder[RREFRequest] = encodeHelper[RREFRequest](413, "RREF") { (msg, b) =>
     b.putInt(msg.frequency)
     b.putInt(msg.id)
     ascii(b, msg.path, 400)
   }
 
-  implicit val ALRTEncoder: XPlaneEncoder[ALRTRequest] = encodeHelper[ALRTRequest](965, "ALRT") { (msg, b) =>
+  implicit val ALRTRequestEncoder: XPlaneEncoder[ALRTRequest] = encodeHelper[ALRTRequest](965, "ALRT") { (msg, b) =>
     msg.msgs take math.min(msg.msgs.length, 4) foreach { msg =>
       ascii(b, msg.substring(0, math.min(msg.length, 239)), 240)
     }
