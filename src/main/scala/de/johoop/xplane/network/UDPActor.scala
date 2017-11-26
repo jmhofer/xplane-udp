@@ -27,12 +27,12 @@ class UDPActor(maxResponseSize: Int) extends Actor with ActorLogging {
 
   // DANGER ZONE!
   // only safe because event requests get only sent once from the outside
-  private val response = ByteBuffer allocate maxResponseSize
+   private val response = ByteBuffer allocate maxResponseSize
 
   def receive: Receive = {
     case request: EventRequest =>
       pipe(Future {
-        log debug "listening..."
+        log debug s"listening at ${request.channel.getLocalAddress}..."
         response.clear
 
         request.channel receive response

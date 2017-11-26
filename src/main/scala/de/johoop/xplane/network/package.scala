@@ -23,8 +23,8 @@ package object network {
     resolveLocalXPlaneBeacon map { beacon =>
       val address = localXPlaneAddress(beacon)
       val channel = returning(DatagramChannel.open) { ch =>
-        ch bind new InetSocketAddress("localhost", 0)
-        ch connect new InetSocketAddress("localhost", 49000)
+        ch bind localAddress(0)
+        //ch connect localXPlaneAddress(beacon) // TODO the test mock has to be fixed to do without this connect
       }
       XPlaneConnection(channel, address, beacon)
     }
@@ -33,7 +33,10 @@ package object network {
     connection.channel.send(request.encode, connection.address)
   }
 
-  private[network] def localXPlaneAddress(becn: BECN): SocketAddress = new InetSocketAddress(InetAddress.getByName("127.0.0.1"), becn.port)
+  private[network] def localXPlaneAddress(becn: BECN): SocketAddress = localAddress(becn.port)
+
+  private[network] def localAddress(port: Int): SocketAddress =
+    new InetSocketAddress(InetAddress.getByName("localhost"), port)
 
   private[xplane] def resolveLocalXPlaneBeacon: Future[BECN] = Future {
     val socket = new MulticastSocket(multicastPort)

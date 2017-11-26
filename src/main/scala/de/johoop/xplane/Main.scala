@@ -2,6 +2,7 @@ package de.johoop.xplane
 
 import akka.Done
 import akka.actor.ActorSystem
+import akka.stream.scaladsl.{Keep, Sink}
 import akka.stream.{ActorMaterializer, Materializer}
 import akka.util.Timeout
 import de.johoop.xplane.api.XPlaneApi
@@ -30,6 +31,8 @@ object Main {
     import system.dispatcher
 
     XPlaneApi.connect flatMap { api =>
+      println("Beacon: " + api.beacon)
+
       val source = api.subscribeToDataRefs(1,
         "sim/flightmodel/weight/m_fixed",
         "sim/flightmodel/weight/m_total",
@@ -38,9 +41,22 @@ object Main {
         "sim/aircraft/overflow/acf_num_tanks",
         "sim/aircraft/weight/acf_m_fuel_tot")
 
+      val done = source
+        .take(15)
+        .idleTimeout(20 seconds)
+        .toMat(Sink.foreach { dataRefs =>
+          println("DataRefs:")
+          println(dataRefs.toSeq.mkString("\n"))
+          println()
+        })(Keep.right)
+        .run()
+
       // TODO do something with the source, change some dataref, check
 
-      api.disconnect
+      done recover { case e =>
+          println(s"failed: ${e.getMessage}")
+          Done
+      } andThen { case _ => api.disconnect }
     }
 
 // example for modifying the fuel tank load of the plane
