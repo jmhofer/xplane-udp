@@ -6,14 +6,14 @@ import java.nio.channels.{ClosedChannelException, DatagramChannel}
 import akka.{Done, NotUsed}
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props}
 import akka.pattern.ask
-import akka.stream.scaladsl.Source
+import akka.stream.Materializer
+import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.util.Timeout
 import de.johoop.xplane.api.XPlaneActor.{Subscribe, Unsubscribe, UnsubscribeAll}
 import de.johoop.xplane.network
 import de.johoop.xplane.network.{XPlaneClientActor, XPlaneConnection, XPlaneSource}
 import de.johoop.xplane.network.protocol._
 import de.johoop.xplane.network.protocol.Request._
-import de.johoop.xplane.util.returning
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -36,12 +36,15 @@ class ConnectedXPlaneApi(connection: XPlaneConnection)
 
   val beacon: BECN = connection.beacon
 
-  def subscribeToDataRefs(frequency: Int, dataRefs: String*): Source[String Map Float, NotUsed] =
-    Source.fromFuture(xplane.ask(Subscribe(frequency, dataRefs)).mapTo[Source[String Map Float, NotUsed]]).flatMapConcat(identity)
+  def subscribeToDataRefs(frequency: Int, dataRefPaths: String*): Source[String Map Float, NotUsed] =
+    Source.fromFuture(xplane.ask(Subscribe(frequency, dataRefPaths)).mapTo[Source[String Map Float, NotUsed]]).flatMapConcat(identity)
 
-  def unsubscribeFromDataRefs(dataRefs: String*): Future[Done] = xplane.ask(Unsubscribe(dataRefs)).mapTo[Done]
+  def unsubscribeFromDataRefs(dataRefPaths: String*): Future[Done] = xplane.ask(Unsubscribe(dataRefPaths)).mapTo[Done]
 
-  def getDataRef(dataRef: String): Future[Float] = ??? // TODO implement
+  def getDataRef(dataRefPath: String)(implicit mat: Materializer): Future[Float] = {
+    val dataRefs = subscribeToDataRefs(100, dataRefPath).toMat(Sink.head)(Keep.right).run()
+    dataRefs map (_(dataRefPath)) andThen { case _ => unsubscribeFromDataRefs(dataRefPath) }
+  }
 
   def setDataRef(dataRef: String, value: Float): Future[Done] = Future {
     network.sendTo(connection)(DREFRequest(value, dataRef))
@@ -97,7 +100,7 @@ class XPlaneActor(connection: XPlaneConnection) extends Actor with ActorLogging 
         RREFRequest(frequency = 0, idx, path)
       } foreach { req =>
         try network.sendTo(connection)(req)
-        catch { case e: ClosedChannelException =>
+        catch { case _: ClosedChannelException =>
           log warning "trying to unsubscribe from already closed channel"
         }
       }
