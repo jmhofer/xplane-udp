@@ -1,6 +1,6 @@
 package de.johoop.xplane.api
 
-import java.net.SocketAddress
+import java.net.{InetAddress, SocketAddress}
 import java.nio.channels.{ClosedChannelException, DatagramChannel}
 
 import akka.{Done, NotUsed}
@@ -25,8 +25,8 @@ case class XPlane private[xplane] (
   private[xplane] val nextDataRefIndex: Int = 0)
 
 object XPlaneApi {
-  def connect(implicit system: ActorSystem, ec: ExecutionContext, timeout: Timeout): Future[ConnectedXPlaneApi] =
-    network.createXPlaneClient map (new ConnectedXPlaneApi(_))
+  def connect(multicastGroupName: String = "239.255.1.1", multicastPort: Int = 49707)(implicit system: ActorSystem, ec: ExecutionContext, timeout: Timeout): Future[ConnectedXPlaneApi] =
+    network.createXPlaneClient(InetAddress getByName multicastGroupName, multicastPort) map (new ConnectedXPlaneApi(_))
 }
 
 // TODO maybe also handle RPOS

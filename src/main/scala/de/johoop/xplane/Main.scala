@@ -30,7 +30,7 @@ object Main {
     implicit val timeout: Timeout = Timeout(1 second)
     import system.dispatcher
 
-    XPlaneApi.connect flatMap { api =>
+    XPlaneApi.connect() flatMap { api =>
       println("Beacon: " + api.beacon)
 
       val source = api.subscribeToDataRefs(1,

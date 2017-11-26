@@ -8,7 +8,6 @@ import akka.pattern.{after, pipe}
 import akka.Done
 import akka.actor.{Actor, ActorLogging, PoisonPill, Props}
 import akka.dispatch.ExecutionContexts
-import de.johoop.xplane.network.{multicastGroup, multicastPort}
 import de.johoop.xplane.network.protocol._
 import de.johoop.xplane.network.protocol.Request._
 import de.johoop.xplane.network.protocol.Response._
@@ -31,10 +30,11 @@ object XPlaneServerMock {
   case class Broadcast(initialDelay: FiniteDuration = Duration.Zero) extends Message
   case class SendRREF(rref: RREF) extends Message
 
-  def props: Props = Props[XPlaneServerMock]
+  def props(multicastGroup: InetAddress, multicastPort: Int): Props =
+    Props(new XPlaneServerMock(multicastGroup, multicastPort))
 }
 
-class XPlaneServerMock extends Actor with ActorLogging {
+class XPlaneServerMock(multicastGroup: InetAddress, multicastPort: Int) extends Actor with ActorLogging {
   import context.dispatcher
   import de.johoop.xplane.XPlaneServerMock._
 

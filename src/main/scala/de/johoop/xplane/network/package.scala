@@ -14,18 +14,12 @@ import de.johoop.xplane.util.returning
 import scala.concurrent.{ExecutionContext, Future}
 
 package object network {
-  private[xplane] val multicastGroup = InetAddress getByName "239.255.1.1"
-  private[xplane] val multicastPort = 49707
-
   case class XPlaneConnection(channel: DatagramChannel, address: SocketAddress, beacon: BECN)
 
-  private[xplane] def createXPlaneClient(implicit ec: ExecutionContext): Future[XPlaneConnection] =
-    resolveLocalXPlaneBeacon map { beacon =>
+  private[xplane] def createXPlaneClient(multicastGroup: InetAddress, multicastPort: Int)(implicit ec: ExecutionContext): Future[XPlaneConnection] =
+    resolveLocalXPlaneBeacon(multicastGroup, multicastPort) map { beacon =>
       val address = localXPlaneAddress(beacon)
-      val channel = returning(DatagramChannel.open) { ch =>
-        ch bind localAddress(0)
-        //ch connect localXPlaneAddress(beacon) // TODO the test mock has to be fixed to do without this connect
-      }
+      val channel = returning(DatagramChannel.open) { _ bind localAddress(0) }
       XPlaneConnection(channel, address, beacon)
     }
 
@@ -38,7 +32,7 @@ package object network {
   private[network] def localAddress(port: Int): SocketAddress =
     new InetSocketAddress(InetAddress.getByName("localhost"), port)
 
-  private[xplane] def resolveLocalXPlaneBeacon: Future[BECN] = Future {
+  private[xplane] def resolveLocalXPlaneBeacon(multicastGroup: InetAddress, multicastPort: Int): Future[BECN] = Future {
     val socket = new MulticastSocket(multicastPort)
     val buf = try {
       socket joinGroup multicastGroup

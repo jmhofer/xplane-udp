@@ -1,5 +1,7 @@
 package de.johoop.xplane
 
+import java.net.InetAddress
+
 import akka.Done
 import akka.actor.ActorSystem
 import akka.pattern.{after, ask}
@@ -39,7 +41,12 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll 
 
   import system.dispatcher
 
-  val mock = system.actorOf(XPlaneServerMock.props, "mock")
+  val multicastGroupName = "239.255.1.2"
+  val multicastGroup = InetAddress getByName multicastGroupName
+
+  val multicastPort = 49707
+
+  val mock = system.actorOf(XPlaneServerMock.props(multicastGroup, multicastPort), "mock")
 
   def afterAll: Unit = {
     mock ! ShutDown
@@ -48,14 +55,14 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll 
   }
 
   def e1 = {
-    val beacon = network.resolveLocalXPlaneBeacon
+    val beacon = network.resolveLocalXPlaneBeacon(multicastGroup, multicastPort)
     mock ? Broadcast(100 millis)
 
     beacon must beEqualTo(XPlaneServerMock.becn).await
   }
 
   def e2 = {
-    val done = XPlaneApi.connect flatMap { api =>
+    val done = XPlaneApi.connect(multicastGroupName) flatMap { api =>
       after(100 millis, system.scheduler)(api.disconnect)
     }
 
@@ -92,7 +99,7 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll 
   }
 
   private def withConnectedApi[T](op: ConnectedXPlaneApi => Future[T]): Future[T] =
-    returning(XPlaneApi.connect flatMap { api =>
+    returning(XPlaneApi.connect(multicastGroupName) flatMap { api =>
       op(api) andThen { case _ =>
         after(100 millis, system.scheduler)(api.disconnect)
       }
