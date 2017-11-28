@@ -23,6 +23,8 @@ object XPlane {
 class ConnectedToXPlane(val beacon: BECN)(implicit system: ActorSystem, ec: ExecutionContext) {
   private val connectionForSending: XPlaneConnection = network.createXPlaneClient(beacon)
 
+  def subscribeToRPOS(frequency: Int): Source[RPOS, NotUsed] = Source.empty // TODO implement
+
   def subscribeToDataRefs(frequency: Int, dataRefPaths: String*): Source[String Map Float, NotUsed] =
     Source fromGraph new XPlaneSource(beacon, frequency, dataRefPaths.toVector)
 

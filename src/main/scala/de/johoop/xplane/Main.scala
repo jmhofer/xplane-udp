@@ -32,16 +32,16 @@ object Main {
     XPlane.connect() flatMap { api =>
       println("Beacon: " + api.beacon)
 
-      // fixed weight: "sim/flightmodel/weight/m_fixed"
       // number of fuel tanks: "sim/aircraft/overflow/acf_num_tanks"
       // total fuel capacity: "sim/aircraft/weight/acf_m_fuel_tot"
       // total weight: "sim/flightmodel/weight/m_total",
 
       api.getDataRef("sim/aircraft/weight/acf_m_fuel_tot") foreach { totalFuelCapacity =>
-        // FIXME somehow, unsubscribing seems to get into conflict with the other received values
-        // TODO check what might be going on here, and that it's not a bug on the X-Plane side
-        // TODO verify that it works, now that we're using separate datagram channels for each subscription
         println("Total fuel capacity: " + totalFuelCapacity)
+      }
+
+      api.getDataRef("sim/flightmodel/weight/m_fixed") foreach { fixedWeight =>
+        println("Fixed weight: " + fixedWeight)
       }
 
       val sourceForLeftFuel = api.subscribeToDataRefs(1, "sim/flightmodel/weight/m_fuel[0]")

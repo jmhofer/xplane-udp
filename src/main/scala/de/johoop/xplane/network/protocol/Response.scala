@@ -91,11 +91,17 @@ object Response {
     }
   }
 
-  implicit val RREFEncoder: XPlaneEncoder[RREF] = encodeHelper[RREF](1024, "RREF") { (msg, b) =>
-    msg.dataRefs foreach { case (id, value) =>
+  implicit val RREFEncoder: XPlaneEncoder[RREF] = encodeHelper[RREF](1024, "RREF") { (rref, b) =>
+    rref.dataRefs foreach { case (id, value) =>
       b.putInt(id)
       b.putFloat(value)
     }
+  }
+
+  implicit val RPOSEncoder: XPlaneEncoder[RPOS] = encodeHelper[RPOS](1024, "RPOS") { (rpos, b) =>
+    Vector(rpos.longitude, rpos.latitude, rpos.elevationSeaLevel) foreach b.putDouble
+    Vector(rpos.elevationTerrain, rpos.pitch, rpos.trueHeading, rpos.roll, rpos.speedX, rpos.speedY, rpos.speedZ,
+      rpos.rollRate, rpos.pitchRate, rpos.yawRate) foreach b.putFloat
   }
 
   implicit object ResponseDecoder extends XPlaneDecoder[Payload] {

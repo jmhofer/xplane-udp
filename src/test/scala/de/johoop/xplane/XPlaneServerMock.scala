@@ -6,7 +6,7 @@ import java.util.concurrent.Executors
 
 import akka.pattern.{after, pipe}
 import akka.Done
-import akka.actor.{Actor, ActorLogging, PoisonPill, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import akka.dispatch.ExecutionContexts
 import de.johoop.xplane.network.protocol._
 import de.johoop.xplane.network.protocol.Request._
@@ -29,6 +29,7 @@ object XPlaneServerMock {
   case object ShutDown extends Message
   case class Broadcast(initialDelay: FiniteDuration = Duration.Zero) extends Message
   case class SendRREF(rref: RREF) extends Message
+  case class SendRPOS(rpos: RPOS) extends Message
   case object ResetReceived extends Message
 
   def props(multicastGroup: InetAddress, multicastPort: Int): Props =
@@ -78,10 +79,10 @@ class XPlaneServerMock(multicastGroup: InetAddress, multicastPort: Int) extends 
       }) pipeTo sender()
 
     case SendRREF(rref) =>
-      maybePort match {
-        case None => sender() ! Done
-        case Some(port) => send(port, rref) pipeTo sender()
-      }
+      sendFromActor[RREF](maybePort, rref, sender())
+
+    case SendRPOS(rpos) =>
+      sendFromActor[RPOS](maybePort, rpos, sender())
 
     case ResetReceived =>
       context.become(receiveAndRemember(maybePort, Vector.empty))
@@ -90,6 +91,12 @@ class XPlaneServerMock(multicastGroup: InetAddress, multicastPort: Int) extends 
       multicastSocket.close()
       payloadSocket.close()
       self ! PoisonPill
+  }
+
+  private def sendFromActor[T <: Payload](maybePort: Option[Int], t: T, sender: ActorRef)
+                              (implicit enc: XPlaneEncoder[T]): Unit = maybePort match {
+    case None => sender ! Done
+    case Some(port) => send(port, t) pipeTo sender
   }
 
   def send[T <: Payload](port: Int, p: T)(implicit enc: XPlaneEncoder[T]): Future[Done] = Future {

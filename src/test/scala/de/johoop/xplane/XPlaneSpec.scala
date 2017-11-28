@@ -10,7 +10,7 @@ import akka.util.Timeout
 import de.johoop.xplane.XPlaneServerMock._
 import de.johoop.xplane.api.{ConnectedToXPlane, XPlane}
 import de.johoop.xplane.network.protocol.Message.ProtocolError
-import de.johoop.xplane.network.protocol.{BECN, RREF, RREFRequest, Request}
+import de.johoop.xplane.network.protocol._
 import de.johoop.xplane.util.returning
 import org.specs2.Specification
 import org.specs2.concurrent.ExecutionEnv
@@ -31,7 +31,8 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with BeforeEac
     connecting must succeed and produce the proper beacon,                               $e2
     connecting and retrieving the beacon must return the correct beacon information,     $e3
     subscribing to a dataref must provide us with a source of values for this dataref,   $e4
-    retrieving a single dataref value must return one value.                             $e5
+    retrieving a single dataref value must return one value,                             $e5
+    subscribing to the plane position must provide us with a source of position data.    $e6
   """
 
   implicit val system: ActorSystem = ActorSystem("xplane-spec")
@@ -46,6 +47,13 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with BeforeEac
   val multicastPort = 49707
 
   val mock = system.actorOf(XPlaneServerMock.props(multicastGroup, multicastPort), "mock")
+
+  val rpos = RPOS(
+    longitude = -1.0, latitude = -0.5,
+    elevationSeaLevel = 99.0, elevationTerrain = 10.0f,
+    pitch = 0.1f, trueHeading = 0.2f, roll = -0.1f,
+    speedX = 100.0f, speedY = 50.0f, speedZ = 0.0f,
+    rollRate = -0.5f, pitchRate = 0.3f, yawRate = -100.0f)
 
   def before: Unit = mock ! ResetReceived
 
@@ -100,6 +108,19 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with BeforeEac
         Right(RREFRequest(100, 1, dataRefPath)),
         Right(RREFRequest(0, 1, dataRefPath)))).awaitFor(10 seconds) and
       (value must beEqualTo(-9.5f).awaitFor(10 seconds))
+  }
+
+  def e6 = {
+    val firstPosition = withConnectedApi { api =>
+      api.subscribeToRPOS(20).toMat(Sink.head)(Keep.right).run()
+    }
+
+    after(500 millis, system.scheduler)(mock ? SendRPOS(rpos))
+
+    val received = after(700 millis, system.scheduler)(mock.ask(GetReceived).mapTo[Vector[Either[ProtocolError, Request]]])
+
+    received must beEqualTo(Vector(Right(RPOSRequest(20), RPOSRequest(0)))).awaitFor(10 seconds) and
+      (firstPosition must beEqualTo(rpos).awaitFor(10 seconds))
   }
 
   private def withConnectedApi[T](op: ConnectedToXPlane => Future[T]): Future[T] =
