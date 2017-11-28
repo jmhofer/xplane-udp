@@ -1,9 +1,10 @@
 package de.johoop.xplane.network
 
 import java.nio.ByteBuffer
-import java.nio.channels.DatagramChannel
+import java.nio.channels.{ClosedChannelException, DatagramChannel}
 import java.util.concurrent.Executors
 
+import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorLogging, PoisonPill, Props}
 import de.johoop.xplane.network.UDPActor.{EventRequest, EventResponse, ShutDown}
 import de.johoop.xplane.network.protocol.Message._
@@ -33,13 +34,7 @@ class UDPActor(channel: DatagramChannel, callback: AsyncCallback[Event], maxResp
 
   self ! EventRequest
 
-  def receive: Receive = receiveWhileActive(true)
-
-  def receiveWhileActive(active: Boolean): Receive = {
-    case ShutDown =>
-      channel.close()
-      context become receiveWhileActive(active = false)
-
+  def receive: Receive = {
     case EventRequest =>
       pipe(Future {
         log debug s"listening at ${channel.getLocalAddress}..."
@@ -53,9 +48,15 @@ class UDPActor(channel: DatagramChannel, callback: AsyncCallback[Event], maxResp
 
     case EventResponse(event) =>
       log debug s"received: $event"
-      if (active) {
-        callback invoke event
-        self ! EventRequest
-      } else self ! PoisonPill
+      callback invoke event
+      self ! EventRequest
+
+    case ShutDown =>
+      log debug "shutting down"
+      channel.close() // this will cause the receive to interrupt, the respective failure is caught below
+
+    case Failure(_: ClosedChannelException) =>
+      log debug "interrupted by shutdown"
+      self ! PoisonPill
   }
 }
