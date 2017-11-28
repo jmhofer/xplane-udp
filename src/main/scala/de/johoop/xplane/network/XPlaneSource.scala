@@ -1,9 +1,10 @@
 package de.johoop.xplane.network
 
-import akka.actor.{ActorRef, ActorSystem, PoisonPill}
+import akka.actor.{ActorRef, ActorSystem}
 import akka.stream.stage.{GraphStage, GraphStageLogic, OutHandler}
 import akka.stream.{Attributes, Outlet, SourceShape}
 import de.johoop.xplane.network
+import de.johoop.xplane.network.UDPActor.ShutDown
 import de.johoop.xplane.network.protocol.Message.ProtocolError
 import de.johoop.xplane.network.protocol.{BECN, Payload, RREF, RREFRequest}
 
@@ -43,9 +44,8 @@ class XPlaneSource(beacon: BECN, frequency: Int, dataRefPaths: Vector[String])(i
 
     override def postStop: Unit = {
       udpActor foreach  { udpActor =>
-        udpActor ! PoisonPill
         sendSubscriptionRequests(frequency = 0)
-        connection.channel.close()
+        udpActor ! ShutDown
       }
     }
 

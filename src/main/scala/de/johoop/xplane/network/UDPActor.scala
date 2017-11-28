@@ -4,8 +4,8 @@ import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
 import java.util.concurrent.Executors
 
-import akka.actor.{Actor, ActorLogging, Props}
-import de.johoop.xplane.network.UDPActor.{EventRequest, EventResponse}
+import akka.actor.{Actor, ActorLogging, PoisonPill, Props}
+import de.johoop.xplane.network.UDPActor.{EventRequest, EventResponse, ShutDown}
 import de.johoop.xplane.network.protocol.Message._
 import de.johoop.xplane.network.protocol.Payload
 import akka.pattern.pipe
@@ -17,6 +17,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object UDPActor {
   sealed trait Message
+  case object ShutDown extends Message
   private[UDPActor] case object EventRequest extends Message
   private[UDPActor] final case class EventResponse(event: Event) extends Message
 
@@ -32,7 +33,13 @@ class UDPActor(channel: DatagramChannel, callback: AsyncCallback[Event], maxResp
 
   self ! EventRequest
 
-  def receive: Receive = {
+  def receive: Receive = receiveWhileActive(true)
+
+  def receiveWhileActive(active: Boolean): Receive = {
+    case ShutDown =>
+      channel.close()
+      context become receiveWhileActive(active = false)
+
     case EventRequest =>
       pipe(Future {
         log debug s"listening at ${channel.getLocalAddress}..."
@@ -46,7 +53,9 @@ class UDPActor(channel: DatagramChannel, callback: AsyncCallback[Event], maxResp
 
     case EventResponse(event) =>
       log debug s"received: $event"
-      callback invoke event
-      self ! EventRequest
+      if (active) {
+        callback invoke event
+        self ! EventRequest
+      } else self ! PoisonPill
   }
 }
