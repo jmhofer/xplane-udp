@@ -119,7 +119,7 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with BeforeEac
 
     val received = after(700 millis, system.scheduler)(mock.ask(GetReceived).mapTo[Vector[Either[ProtocolError, Request]]])
 
-    received must beEqualTo(Vector(Right(RPOSRequest(20), RPOSRequest(0)))).awaitFor(10 seconds) and
+    received must beEqualTo(Vector(Right(RPOSRequest(20)), Right(RPOSRequest(0)))).awaitFor(10 seconds) and
       (firstPosition must beEqualTo(rpos).awaitFor(10 seconds))
   }
 

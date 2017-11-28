@@ -2,10 +2,12 @@ package de.johoop.xplane
 
 import java.net._
 import java.nio.ByteBuffer
+import java.nio.channels.ClosedChannelException
 import java.util.concurrent.Executors
 
 import akka.pattern.{after, pipe}
 import akka.Done
+import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import akka.dispatch.ExecutionContexts
 import de.johoop.xplane.network.protocol._
@@ -90,6 +92,9 @@ class XPlaneServerMock(multicastGroup: InetAddress, multicastPort: Int) extends 
     case ShutDown =>
       multicastSocket.close()
       payloadSocket.close()
+
+    case Failure(_: ClosedChannelException) =>
+      log debug "interrupted by shutdown"
       self ! PoisonPill
   }
 

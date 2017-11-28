@@ -46,6 +46,12 @@ object Main {
 
       val sourceForLeftFuel = api.subscribeToDataRefs(1, "sim/flightmodel/weight/m_fuel[0]")
 
+      val doneWithPositions = api.subscribeToRPOS(2)
+        .take(100)
+        .idleTimeout(60 seconds)
+        .toMat(Sink foreach println)(Keep.right)
+        .run()
+
       val doneLeftFuel = sourceForLeftFuel
         .take(10)
         .idleTimeout(12 seconds)
@@ -75,6 +81,7 @@ object Main {
       val done = for {
         _ <- doneLeftFuel
         _ <- doneRightFuel
+        _ <- doneWithPositions
       } yield Done
 
       done recover { case e =>
