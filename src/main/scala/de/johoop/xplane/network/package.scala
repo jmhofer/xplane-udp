@@ -14,18 +14,15 @@ import de.johoop.xplane.util.returning
 import scala.concurrent.{ExecutionContext, Future}
 
 package object network {
-  case class XPlaneConnection(channel: DatagramChannel, address: SocketAddress, beacon: BECN)
+  case class XPlaneConnection(channel: DatagramChannel, address: SocketAddress)
 
-  private[xplane] def createXPlaneClient(multicastGroup: InetAddress, multicastPort: Int)(implicit ec: ExecutionContext): Future[XPlaneConnection] =
-    resolveLocalXPlaneBeacon(multicastGroup, multicastPort) map { beacon =>
-      val address = localXPlaneAddress(beacon)
-      val channel = returning(DatagramChannel.open) { _ bind localAddress(0) }
-      XPlaneConnection(channel, address, beacon)
-    }
+  private[xplane] def createXPlaneClient(beacon: BECN): XPlaneConnection =
+    XPlaneConnection(
+      returning(DatagramChannel.open) { _ bind localAddress(0) },
+      localXPlaneAddress(beacon))
 
-  private[xplane] def sendTo[T <: Request](connection: XPlaneConnection)(request: T)(implicit enc: XPlaneEncoder[T]): Unit = {
+  private[xplane] def sendTo[T <: Request](connection: XPlaneConnection)(request: T)(implicit enc: XPlaneEncoder[T]): Unit =
     connection.channel.send(request.encode, connection.address)
-  }
 
   private[network] def localXPlaneAddress(becn: BECN): SocketAddress = localAddress(becn.port)
 

@@ -5,8 +5,7 @@ import akka.actor.ActorSystem
 import akka.pattern.after
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.stream.{ActorMaterializer, Materializer}
-import akka.util.Timeout
-import de.johoop.xplane.api.XPlaneApi
+import de.johoop.xplane.api.XPlane
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits
@@ -28,10 +27,9 @@ object Main {
   }
 
   def doStuff(implicit system: ActorSystem, mat: Materializer): Future[Done] = {
-    implicit val timeout: Timeout = Timeout(1 second)
     import system.dispatcher
 
-    XPlaneApi.connect() flatMap { api =>
+    XPlane.connect() flatMap { api =>
       println("Beacon: " + api.beacon)
 
       // fixed weight: "sim/flightmodel/weight/m_fixed"
@@ -42,6 +40,7 @@ object Main {
       api.getDataRef("sim/aircraft/weight/acf_m_fuel_tot") foreach { totalFuelCapacity =>
         // FIXME somehow, unsubscribing seems to get into conflict with the other received values
         // TODO check what might be going on here, and that it's not a bug on the X-Plane side
+        // TODO verify that it works, now that we're using separate datagram channels for each subscription
         println("Total fuel capacity: " + totalFuelCapacity)
       }
 
@@ -74,14 +73,14 @@ object Main {
       }
 
       val done = for {
-        left <- doneLeftFuel
-        right <- doneRightFuel
+        _ <- doneLeftFuel
+        _ <- doneRightFuel
       } yield Done
 
       done recover { case e =>
-          println(s"failed: ${e.getMessage}")
-          Done
-      } andThen { case _ => api.disconnect }
+        println(s"failed: ${e.getMessage}")
+        Done
+      }
     }
   }
 }

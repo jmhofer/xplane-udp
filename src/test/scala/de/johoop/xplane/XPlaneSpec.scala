@@ -2,26 +2,25 @@ package de.johoop.xplane
 
 import java.net.InetAddress
 
-import akka.Done
 import akka.actor.ActorSystem
 import akka.pattern.{after, ask}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Keep, Sink}
 import akka.util.Timeout
-import de.johoop.xplane.XPlaneServerMock.{Broadcast, GetReceived, SendRREF, ShutDown}
-import de.johoop.xplane.api.{ConnectedXPlaneApi, XPlaneApi}
+import de.johoop.xplane.XPlaneServerMock._
+import de.johoop.xplane.api.{ConnectedToXPlane, XPlane}
 import de.johoop.xplane.network.protocol.Message.ProtocolError
-import de.johoop.xplane.network.protocol.{RREF, RREFRequest, Request}
+import de.johoop.xplane.network.protocol.{BECN, RREF, RREFRequest, Request}
 import de.johoop.xplane.util.returning
 import org.specs2.Specification
 import org.specs2.concurrent.ExecutionEnv
-import org.specs2.matcher.FutureMatchers
-import org.specs2.specification.AfterAll
+import org.specs2.matcher.{FutureMatchers, Matcher}
+import org.specs2.specification.{AfterAll, BeforeEach}
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 
-class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll with FutureMatchers { def is =
+class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with BeforeEach with AfterAll with FutureMatchers { def is =
   "XPlane".title ^ sequential ^ s2"""
 
   The XPlane client should work.
@@ -29,7 +28,7 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll 
   The low-level network package must find a broadcasting X-Plane installation and return its beacon data.  $e1
 
   For the high-level X-Plane API,
-    connecting and immediately disconnecting again must succeed,                         $e2
+    connecting must succeed and produce the proper beacon,                               $e2
     connecting and retrieving the beacon must return the correct beacon information,     $e3
     subscribing to a dataref must provide us with a source of values for this dataref,   $e4
     retrieving a single dataref value must return one value.                             $e5
@@ -48,6 +47,8 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll 
 
   val mock = system.actorOf(XPlaneServerMock.props(multicastGroup, multicastPort), "mock")
 
+  def before: Unit = mock ! ResetReceived
+
   def afterAll: Unit = {
     mock ! ShutDown
     mat.shutdown
@@ -62,13 +63,11 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll 
   }
 
   def e2 = {
-    val done = XPlaneApi.connect(multicastGroupName) flatMap { api =>
-      after(100 millis, system.scheduler)(api.disconnect)
-    }
+    val connected = XPlane.connect(multicastGroupName)
 
     mock ? Broadcast(100 millis)
 
-    done must beEqualTo(Done).await
+    connected must haveBeacon(XPlaneServerMock.becn).await
   }
 
   def e3 = withConnectedApi(api => Future.successful(api.beacon)) must beEqualTo(XPlaneServerMock.becn).await
@@ -76,7 +75,7 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll 
   def e4 = {
     val dataRefPath = "/mock/dataref"
     val dataRefs = withConnectedApi { api =>
-      api.subscribeToDataRefs(100, dataRefPath).toMat(Sink.head)(Keep.right).run()
+      api.subscribeToDataRefs(50, dataRefPath).toMat(Sink.head)(Keep.right).run()
     }
 
     after(500 millis, system.scheduler)(mock ? SendRREF(RREF(Map(1 -> 1.0f))))
@@ -84,7 +83,7 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll 
     val received = after(700 millis, system.scheduler)(mock.ask(GetReceived).mapTo[Vector[Either[ProtocolError, Request]]])
 
     received must beEqualTo(Vector(
-        Right(RREFRequest(100, 1, dataRefPath)),
+        Right(RREFRequest(50, 1, dataRefPath)),
         Right(RREFRequest(0, 1, dataRefPath)))).awaitFor(10 seconds) and
       (dataRefs must beEqualTo(Map(dataRefPath -> 1.0f)).await(retries = 0, timeout = 10 seconds))
   }
@@ -95,13 +94,16 @@ class XPlaneSpec(implicit ee: ExecutionEnv) extends Specification with AfterAll 
 
     after(500 millis, system.scheduler)(mock ? SendRREF(RREF(Map(1 -> -9.5f))))
 
-    value must beEqualTo(-9.5f).awaitFor(10 seconds)
+    val received = after(700 millis, system.scheduler)(mock.ask(GetReceived).mapTo[Vector[Either[ProtocolError, Request]]])
+
+    received must beEqualTo(Vector(
+        Right(RREFRequest(100, 1, dataRefPath)),
+        Right(RREFRequest(0, 1, dataRefPath)))).awaitFor(10 seconds) and
+      (value must beEqualTo(-9.5f).awaitFor(10 seconds))
   }
 
-  private def withConnectedApi[T](op: ConnectedXPlaneApi => Future[T]): Future[T] =
-    returning(XPlaneApi.connect(multicastGroupName) flatMap { api =>
-      op(api) andThen { case _ =>
-        after(100 millis, system.scheduler)(api.disconnect)
-      }
-    }) { _ => mock ? Broadcast(100 millis) }
+  private def withConnectedApi[T](op: ConnectedToXPlane => Future[T]): Future[T] =
+    returning(XPlane.connect(multicastGroupName) flatMap op) { _ => mock ? Broadcast(100 millis) }
+
+  private def haveBeacon(beacon: BECN): Matcher[ConnectedToXPlane] = beEqualTo(beacon) ^^ { (_: ConnectedToXPlane).beacon }
 }

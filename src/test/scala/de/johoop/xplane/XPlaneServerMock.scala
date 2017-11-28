@@ -29,6 +29,7 @@ object XPlaneServerMock {
   case object ShutDown extends Message
   case class Broadcast(initialDelay: FiniteDuration = Duration.Zero) extends Message
   case class SendRREF(rref: RREF) extends Message
+  case object ResetReceived extends Message
 
   def props(multicastGroup: InetAddress, multicastPort: Int): Props =
     Props(new XPlaneServerMock(multicastGroup, multicastPort))
@@ -52,7 +53,7 @@ class XPlaneServerMock(multicastGroup: InetAddress, multicastPort: Int) extends 
 
   def receive: Receive = receiveAndRemember(None, Vector.empty)
 
-  def receiveAndRemember(port: Option[Int], received: Vector[Either[ProtocolError, Request]]): Receive = {
+  def receiveAndRemember(maybePort: Option[Int], received: Vector[Either[ProtocolError, Request]]): Receive = {
     case Listen =>
       pipe(Future {
         receiveBuffer.clear
@@ -77,15 +78,17 @@ class XPlaneServerMock(multicastGroup: InetAddress, multicastPort: Int) extends 
       }) pipeTo sender()
 
     case SendRREF(rref) =>
-      port match {
+      maybePort match {
         case None => sender() ! Done
         case Some(port) => send(port, rref) pipeTo sender()
       }
 
+    case ResetReceived =>
+      context.become(receiveAndRemember(maybePort, Vector.empty))
 
     case ShutDown =>
-      multicastSocket.close
-      payloadSocket.close
+      multicastSocket.close()
+      payloadSocket.close()
       self ! PoisonPill
   }
 
