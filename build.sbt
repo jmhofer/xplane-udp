@@ -1,26 +1,41 @@
-organization := "de.johoop"
-name := "xplane"
-version := "0.1"
-scalaVersion := "2.12.4"
-scalacOptions ++= Seq("-deprecation", "-unchecked", "-language:_", "-target:jvm-1.8", "-encoding", "UTF-8", "-Ywarn-dead-code", "-Ywarn-unused")
+import sbt.Keys.{fork, name, scalaVersion}
 
 val catsVersion = "0.9.0"
 val akkaStreamsVersion = "2.5.6"
 val specs2Version = "4.0.0"
 
-libraryDependencies ++= Seq(
-  "org.typelevel" %% "cats" % catsVersion,
-  "com.typesafe.akka" %% "akka-stream" % akkaStreamsVersion,
+lazy val commonSettings = Seq(
+  organization := "de.johoop",
+  version := "0.1",
 
-  "org.specs2" %% "specs2-core" % specs2Version % Test
+  scalaVersion := "2.12.4",
+  scalacOptions ++= Seq("-deprecation", "-unchecked", "-language:_", "-target:jvm-1.8", "-encoding", "UTF-8", "-Ywarn-dead-code", "-Ywarn-unused"),
+
+  javaOptions ++= Seq("-Djava.net.preferIPv4Stack=true"),
+
+  fork in Test := true,
+  scalacOptions in Test ++= Seq("-Yrangepos"),
+
+  fork in run := true,
+  connectInput in run := true,
+  cancelable in Global := true
 )
 
-fork in run := true
-fork in Test := true
+lazy val root = (project in file("."))
+  .settings(
+    commonSettings,
+    name := "xplane-udp",
+    libraryDependencies ++= Seq(
+      "org.typelevel" %% "cats" % catsVersion,
+      "com.typesafe.akka" %% "akka-stream" % akkaStreamsVersion,
 
-connectInput in run := true
-cancelable in Global := true
+      "org.specs2" %% "specs2-core" % specs2Version % Test
+    )
+  )
 
-javaOptions ++= Seq("-Djava.net.preferIPv4Stack=true")
-
-scalacOptions in Test ++= Seq("-Yrangepos")
+lazy val samples = (project in file("samples"))
+  .dependsOn(root)
+  .settings(
+    commonSettings,
+    name := "xplane-udp-samples"
+  )
