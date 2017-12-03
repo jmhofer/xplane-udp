@@ -4,6 +4,9 @@ val catsVersion = "0.9.0"
 val akkaStreamsVersion = "2.5.6"
 val specs2Version = "4.0.0"
 
+val scalaFxVersion = "8.0.144-R12"
+val mapJfxVersion = "1.14.0"
+
 lazy val commonSettings = Seq(
   organization := "de.johoop",
   version := "0.1",
@@ -37,5 +40,9 @@ lazy val samples = (project in file("samples"))
   .dependsOn(root)
   .settings(
     commonSettings,
+    libraryDependencies ++= Seq(
+      "org.scalafx" %% "scalafx" % scalaFxVersion,
+      "com.sothawo" % "mapjfx" % mapJfxVersion
+    ),
     name := "xplane-udp-samples"
   )
