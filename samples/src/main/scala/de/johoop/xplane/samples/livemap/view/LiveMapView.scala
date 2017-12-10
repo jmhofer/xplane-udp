@@ -3,7 +3,7 @@ package de.johoop.xplane.samples.livemap.view
 import java.nio.file.Files
 
 import com.sothawo.mapjfx.offline.OfflineCache
-import com.sothawo.mapjfx.{Coordinate, MapType, MapView}
+import com.sothawo.mapjfx.{Coordinate, CoordinateLine, MapType, MapView}
 import de.johoop.xplane.network.protocol.RPOS
 import de.johoop.xplane.util.returning
 
@@ -36,8 +36,11 @@ class LiveMapView {
     }
   }
 
-  def update(rpos: RPOS): Unit = {
-    map.setCenter(new Coordinate(rpos.latitude, rpos.longitude))
+  def update(previousRPOS: Option[RPOS], currentRPOS: RPOS): Unit = {
+    map.setCenter(currentRPOS.coords)
+    previousRPOS foreach { previous =>
+      map.addCoordinateLine(returning(new CoordinateLine(previous.coords, currentRPOS.coords)) { _.setVisible(true) })
+    }
   }
 
   private def initializeOfflineCache(cache: OfflineCache): Unit = {
@@ -45,5 +48,9 @@ class LiveMapView {
     temp.toFile.deleteOnExit()
     cache setCacheDirectory temp
     cache setActive true
+  }
+
+  implicit class EnrichedRPOS(rpos: RPOS) {
+    def coords: Coordinate = new Coordinate(rpos.latitude, rpos.longitude)
   }
 }

@@ -3,6 +3,7 @@ package de.johoop.xplane.samples.livemap
 import akka.actor.ActorSystem
 import akka.stream.{KillSwitches, Materializer}
 import akka.stream.scaladsl.{Keep, Sink}
+import de.johoop.xplane.network.protocol.RPOS
 import de.johoop.xplane.samples.livemap.model.LiveMap
 import de.johoop.xplane.samples.livemap.view.{LiveMapView, MapPane}
 
@@ -23,12 +24,15 @@ class Controller(mapPane: MapPane, liveMapView: LiveMapView)(implicit system: Ac
     mapPane.connect.onAction = { _ =>
       liveMap.killSwitch match {
         case None =>
-          println("no kill switch, connecting...")
           mapPane.connect.text = "Disconnect"
 
           liveMap = liveMap.copy(killSwitch = Some(LiveMap.initialize
             .viaMat(KillSwitches.single)(Keep.right)
-            .to(Sink.foreach { rpos => Platform.runLater(liveMapView.update(rpos)) })
+            .scan(Option.empty[RPOS]) { (previous, current) =>
+              Platform.runLater(liveMapView.update(previous, current))
+              Option(current)
+            }
+            .to(Sink.ignore)
             .run()
           ))
 
