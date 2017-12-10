@@ -3,7 +3,8 @@ package de.johoop.xplane.samples.livemap
 import akka.actor.ActorSystem
 import akka.stream.{KillSwitches, Materializer}
 import akka.stream.scaladsl.{Keep, Sink}
-import de.johoop.xplane.network.protocol.RPOS
+import de.johoop.xplane.samples.livemap.util._
+import de.johoop.xplane.util.returning
 import de.johoop.xplane.samples.livemap.model.LiveMap
 import de.johoop.xplane.samples.livemap.view.{LiveMapView, MapPane}
 
@@ -28,9 +29,10 @@ class Controller(mapPane: MapPane, liveMapView: LiveMapView)(implicit system: Ac
 
           liveMap = liveMap.copy(killSwitch = Some(LiveMap.initialize
             .viaMat(KillSwitches.single)(Keep.right)
-            .scan(Option.empty[RPOS]) { (previous, current) =>
-              Platform.runLater(liveMapView.update(previous, current))
-              Option(current)
+            .scan(Track()) { (track, rpos) =>
+              returning(Track.update(track, rpos)) { track =>
+                Platform.runLater(liveMapView.update(rpos, track.lines.lastOption))
+              }
             }
             .to(Sink.ignore)
             .run()

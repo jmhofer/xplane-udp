@@ -6,6 +6,7 @@ import com.sothawo.mapjfx.offline.OfflineCache
 import com.sothawo.mapjfx.{Coordinate, CoordinateLine, MapType, MapView}
 import de.johoop.xplane.network.protocol.RPOS
 import de.johoop.xplane.util.returning
+import de.johoop.xplane.samples.livemap.util._
 
 import scalafx.Includes._
 import scalafx.scene.layout.Priority
@@ -36,11 +37,9 @@ class LiveMapView {
     }
   }
 
-  def update(previousRPOS: Option[RPOS], currentRPOS: RPOS): Unit = {
-    map.setCenter(currentRPOS.coords)
-    previousRPOS foreach { previous =>
-      map.addCoordinateLine(returning(new CoordinateLine(previous.coords, currentRPOS.coords)) { _.setVisible(true) })
-    }
+  def update(rpos: RPOS, line: Option[CoordinateLine]): Unit = {
+    map.setCenter(rpos.coords)
+    line foreach map.addCoordinateLine
   }
 
   private def initializeOfflineCache(cache: OfflineCache): Unit = {
@@ -48,9 +47,5 @@ class LiveMapView {
     temp.toFile.deleteOnExit()
     cache setCacheDirectory temp
     cache setActive true
-  }
-
-  implicit class EnrichedRPOS(rpos: RPOS) {
-    def coords: Coordinate = new Coordinate(rpos.latitude, rpos.longitude)
   }
 }
