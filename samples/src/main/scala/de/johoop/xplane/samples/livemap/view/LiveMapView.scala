@@ -12,6 +12,8 @@ import scalafx.Includes._
 import scalafx.scene.layout.Priority
 import scalafx.scene.text.Text
 
+// TODO display plane sprite and rotate it according to the plane's direction
+
 class LiveMapView {
   lazy val map: MapView = returning(new MapView) { mapView =>
     mapView.hgrow = Priority.Always
