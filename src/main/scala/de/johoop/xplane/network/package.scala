@@ -3,8 +3,8 @@ package de.johoop.xplane
 import java.net._
 import java.nio.ByteBuffer
 import java.nio.channels.DatagramChannel
-import java.util.concurrent.Executors
 
+import akka.actor.ActorSystem
 import cats.implicits._
 import de.johoop.xplane.network.protocol.Message._
 import de.johoop.xplane.network.protocol._
@@ -29,7 +29,7 @@ package object network {
   private[network] def localAddress(port: Int): SocketAddress =
     new InetSocketAddress(InetAddress.getByName("localhost"), port)
 
-  private[xplane] def resolveLocalXPlaneBeacon(multicastGroup: InetAddress, multicastPort: Int): Future[BECN] = Future {
+  private[xplane] def resolveLocalXPlaneBeacon(multicastGroup: InetAddress, multicastPort: Int)(implicit system: ActorSystem): Future[BECN] = Future {
     val socket = new MulticastSocket(multicastPort)
     val buf = try {
       socket joinGroup multicastGroup
@@ -40,5 +40,7 @@ package object network {
       case becn: BECN => Right(becn)
       case other => throw ProtocolError(s"expected a BECN, but got: $other")
     } valueOr { throw _ }
-  } (ExecutionContext fromExecutor Executors.newSingleThreadExecutor)
+  } (udpDispatcher)
+
+  def udpDispatcher(implicit system: ActorSystem): ExecutionContext = system.dispatchers.lookup("udp-dispatcher")
 }

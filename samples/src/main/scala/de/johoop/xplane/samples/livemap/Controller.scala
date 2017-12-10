@@ -45,4 +45,6 @@ class Controller(mapPane: MapPane, liveMapView: LiveMapView)(implicit system: Ac
       }
     }
   }
+
+  def shutdown: Unit = liveMap.killSwitch foreach { _.shutdown() }
 }

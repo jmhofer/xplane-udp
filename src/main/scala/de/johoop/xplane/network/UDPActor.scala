@@ -2,7 +2,6 @@ package de.johoop.xplane.network
 
 import java.nio.ByteBuffer
 import java.nio.channels.{ClosedChannelException, DatagramChannel}
-import java.util.concurrent.Executors
 
 import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorLogging, PoisonPill, Props}
@@ -11,10 +10,11 @@ import de.johoop.xplane.network.protocol.Message._
 import de.johoop.xplane.network.protocol.Payload
 import akka.pattern.pipe
 import akka.stream.stage.AsyncCallback
+import de.johoop.xplane.network
 import de.johoop.xplane.network.XPlaneSource.Event
 import de.johoop.xplane.network.protocol.Response.ResponseDecoder
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 object UDPActor {
   sealed trait Message
@@ -44,7 +44,7 @@ class UDPActor(channel: DatagramChannel, callback: AsyncCallback[Event], maxResp
         log debug "received response!"
 
         EventResponse(response.decode[Payload])
-      } (ExecutionContext fromExecutor Executors.newSingleThreadExecutor)).to(self)
+      } (network.udpDispatcher(context.system))).to(self)
 
     case EventResponse(event) =>
       log debug s"received: $event"

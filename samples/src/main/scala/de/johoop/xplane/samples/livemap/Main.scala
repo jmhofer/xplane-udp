@@ -37,6 +37,7 @@ object Main extends JFXApp {
   }
 
   stage.onCloseRequest = { _ =>
+    controller.shutdown
     mat.shutdown()
     system.terminate()
   }

@@ -3,20 +3,18 @@ package de.johoop.xplane
 import java.net._
 import java.nio.ByteBuffer
 import java.nio.channels.ClosedChannelException
-import java.util.concurrent.Executors
 
 import akka.pattern.{after, pipe}
 import akka.Done
 import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
-import akka.dispatch.ExecutionContexts
 import de.johoop.xplane.network.protocol._
 import de.johoop.xplane.network.protocol.Request._
 import de.johoop.xplane.network.protocol.Response._
 import de.johoop.xplane.network.protocol.Message._
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 object XPlaneServerMock {
   val payloadAddress = InetAddress getByName "localhost"
@@ -62,7 +60,7 @@ class XPlaneServerMock(multicastGroup: InetAddress, multicastPort: Int) extends 
         receiveBuffer.clear
         payloadSocket.receive(receivePacket)
         Received(receivePacket.getPort, receiveBuffer.decode[Request])
-      } (ExecutionContexts fromExecutor Executors.newSingleThreadExecutor)) to self
+      } (context.system.dispatchers.lookup("test-udp-dispatcher-receive"))) to self
 
     case Received(port, request) =>
       log debug s"received $request"
@@ -110,5 +108,5 @@ class XPlaneServerMock(multicastGroup: InetAddress, multicastPort: Int) extends 
     val packet = new DatagramPacket(bytes, bytes.length, payloadAddress, port)
     payloadSocket send packet
     Done
-  } (ExecutionContext fromExecutor Executors.newSingleThreadExecutor)
+  } (context.system.dispatchers.lookup("test-udp-dispatcher-send"))
 }
