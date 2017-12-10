@@ -16,6 +16,7 @@ package object math {
       val maxDistance = distances.max
     }
 
+    ???
     // TODO find the maximum and split there, recurse
     // TODO or simply eliminate if < epsilon
   }

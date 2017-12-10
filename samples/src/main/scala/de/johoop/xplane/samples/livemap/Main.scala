@@ -1,56 +1,24 @@
 package de.johoop.xplane.samples.livemap
 
-import java.nio.file.Files
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
+import de.johoop.xplane.samples.livemap.view.{LiveMapView, MapPane}
 
-import com.sothawo.mapjfx.offline.OfflineCache
-import com.sothawo.mapjfx.{Coordinate, MapType, MapView}
-import de.johoop.xplane.util.returning
-
-import scalafx.Includes._
 import scalafx.application.JFXApp
-import scalafx.geometry.Insets
 import scalafx.scene.Scene
-import scalafx.scene.layout._
-import scalafx.scene.text.Text
 
 object Main extends JFXApp {
-  lazy val mapView: MapView = returning(new MapView) { mapView =>
-    mapView.hgrow = Priority.Always
-    mapView.vgrow = Priority.Always
-  }
+  implicit val system = ActorSystem("live-map")
+  implicit val mat = ActorMaterializer()
 
-  lazy val zoomText = new Text {
-    text = "Zoom Level: " + mapView.getZoom.toString
-  }
+  // initialize views
+  lazy val liveMapView = new LiveMapView
+  lazy val mapPane = new MapPane(liveMapView)
 
-  lazy val mapTypeText = new Text {
-    text = "Map Type: " + mapView.getMapType.name
-  }
+  // initialize controller
+  val controller = new Controller(mapPane, liveMapView)
 
-  mapView.zoomProperty.onChange {
-    zoomText.text = "Zoom Level: " + mapView.getZoom.toString
-  }
-
-  mapView.mapTypeProperty.onChange {
-    mapTypeText.text = "Map Type: " + mapView.getMapType.name
-  }
-
-  lazy val mapPane = new BorderPane {
-    hgrow = Priority.Always
-    vgrow = Priority.Always
-
-    center = mapView
-
-    right = new VBox {
-      padding = Insets(20)
-
-      children = Seq(
-        zoomText,
-        mapTypeText
-      )
-    }
-  }
-
+  // set the main stage
   stage = new JFXApp.PrimaryStage {
     title.value = "X-Plane Live Map"
     width = 1024
@@ -61,30 +29,15 @@ object Main extends JFXApp {
     }
   }
 
+  controller.wire
+
+  // main stage wiring
   stage.onShown = { _ =>
-    initializeMapView(mapView)
+    liveMapView.initialize
   }
 
-  def initializeMapView(mapView: MapView): Unit = {
-    initializeOfflineCache(mapView.getOfflineCache)
-
-    mapView.initialize
-
-    mapView.initializedProperty().onChange {
-      mapView.setMapType(MapType.OSM)
-      mapView.setZoom(4.0)
-
-      val coordKarlsruheCastle = new Coordinate(49.013517, 8.404435)
-      mapView setCenter coordKarlsruheCastle
-
-      ()
-    }
-  }
-
-  def initializeOfflineCache(cache: OfflineCache): Unit = {
-    val temp = Files createTempDirectory "xplane-live-map"
-    temp.toFile.deleteOnExit()
-    cache setCacheDirectory temp
-    cache setActive true
+  stage.onCloseRequest = { _ =>
+    mat.shutdown()
+    system.terminate()
   }
 }
