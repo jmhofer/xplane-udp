@@ -6,11 +6,13 @@ import de.johoop.xplane.util.returning
 
 case class Track(coords: Vector[Coordinate] = Vector.empty, lines: Vector[CoordinateLine] = Vector.empty)
 
-// TODO maybe optimise the track in order to avoid eating so much memory
-
 object Track {
   def update(track: Track, rpos: RPOS): Track = {
     val updatedCoords = track.coords :+ rpos.coords
+
+    // TODO sometimes optimize the track
+    // TODO in that case, set all existing lines to invisible (and make sure they are cleaned up)
+    // TODO also, recompute the new coordinate lines
 
     val updatedLines = updatedCoords match {
       case Vector(_) => track.lines
