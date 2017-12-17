@@ -17,7 +17,7 @@ object Request {
     def decode(b: ByteBuffer): Either[ProtocolError, Request] = {
       b.rewind
       b.order(ByteOrder.LITTLE_ENDIAN)
-      returning(string(b, 4))(_ => b.get) match { // TODO extremely simplified right now, only used by the tests
+      returning(string(b, 4))(_ => b.get) match { // extremely simplified right now, only used by the tests
         case "RREF" => Right(RREFRequest(b.getInt, b.getInt, string(b, 400)))
         case "RPOS" => Right(RPOSRequest(string(b, 50).toInt))
         case other => Left(ProtocolError(s"unknown request: $other"))
